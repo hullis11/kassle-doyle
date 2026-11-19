@@ -1,0 +1,82 @@
+@if (isAuthenticated$ | async; as auth) {
+  @if (auth.isAuthenticated) {
+
+    <nav class="sticky-top" data-bs-theme="dark">
+
+      <!-- title bar, user info, settings and logout -->
+      <div class="bg-black d-flex align-items-center px-3 py-2">
+        <div class="flex-1"></div>
+
+        <h1 class="display-4 fw-bold text-warning m-0">KASSLE</h1>
+
+        <div class="flex-1 d-flex justify-content-end align-items-center gap-3 text-warning small">
+          @if (userData$ | async; as userData) {
+            <div class="text-end">
+              <div class="fw-bold">
+                {{ userData.userData?.['cognito:username'] || userData.userData?.['email'] || 'User' }}
+              </div>
+              <div>Role: {{ ( role$ | async ) || 'No role assigned' }}</div>
+            </div>
+          }
+
+          <!-- settings, opens the theme picker -->
+          <div class="dropdown">
+            <button class="btn btn-outline-warning btn-sm" type="button"
+                    data-bs-toggle="dropdown" data-bs-auto-close="outside"
+                    aria-expanded="false">⚙</button>
+            <div class="dropdown-menu dropdown-menu-end p-2">
+              <label class="form-label small mb-1">Theme</label>
+              <select #themeSelect class="form-select form-select-sm w-auto"
+                      (change)="changeTheme(themeSelect.value)">
+                <option value="light">Classic</option>
+                <option value="dark">Dark</option>
+                <option value="forest">Green & Black</option>
+                <option value="ocean">Ocean</option>
+              </select>
+            </div>
+          </div>
+
+          <button class="btn btn-outline-warning btn-sm" (click)="logout()">Log Out</button>
+        </div>
+      </div>
+
+      <!-- menu strip, yellow to match the kassle text -->
+      <div class="bg-warning d-flex justify-content-start align-items-center gap-2 px-3 py-2">
+        <a class="btn btn-warning btn-sm border-0 shadow-none" routerLink="/">Home</a>
+
+        <div class="dropdown">
+          <button class="btn btn-warning btn-sm border-0 shadow-none dropdown-toggle" type="button"
+                  data-bs-toggle="dropdown" aria-expanded="false">
+            Menu
+          </button>
+          <ol class="dropdown-menu">
+            <li><a class="dropdown-item" routerLink="/landing" routerLinkActive="active">Start New Game</a></li>
+            <li><a class="dropdown-item" routerLink="/game-board" routerLinkActive="active">Load Game</a></li>
+            <li>
+              <a class="dropdown-item" routerLink="/admin" routerLinkActive="active"
+                 [class.disabled]="!( isAdmin$ | async )">
+                Admin
+              </a>
+            </li>
+          </ol>
+        </div>
+      </div>
+
+    </nav>
+
+    <main class="app-main">
+      <router-outlet></router-outlet>
+    </main>
+  } @else {
+    <section class="login-screen">
+      <div class="login-card text-center">
+        <h1 class="display-1 fw-bold">KASSLE</h1>
+        <p class="lead mb-4">Ready to play?</p>
+
+        <button class="btn btn-primary btn-lg px-5" (click)="login()">
+          Log In
+        </button>
+      </div>
+    </section>
+  }
+}

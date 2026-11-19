@@ -1,0 +1,171 @@
+# ensures this Service is used with the correct Serverless Framework Access Key.
+org: hullisaac1
+# enables Serverless Framework Dashboard features and sharing them with other Services.
+app: kassle-deploy
+# one service per customer, CUST_NAME and APP_NAME come from codebuild
+service: ${env:CUST_NAME}-${env:APP_NAME, 'kassle'}
+
+custom:
+  # same naming as core.yml and auth.yml, e.g. custa-kassle-dev
+  prefix: ${env:CUST_NAME}-${env:APP_NAME, 'kassle'}-${sls:stage}
+  # customer's site url, localhost until they have one
+  siteUrl: ${env:SITE_URL, 'http://localhost:4200'}
+
+  # bringing tables in from core.yml
+  gamesTable: ${self:custom.prefix}-games
+  screenshotsTable: ${self:custom.prefix}-screenshots
+  screenshotBucket: ${self:custom.prefix}-screenshots
+  # reading ARN from the auth stack
+  userPoolArn: ${cf:${self:custom.prefix}-auth.UserPoolArn}
+
+  # shared http settings, used by every function below
+  cors: &cors
+    origins:
+      - http://localhost:4200
+      - ${self:custom.siteUrl}
+    headers:
+      - Content-Type
+      - X-Api-Key
+      - Authorization
+  authorizer: &authorizer
+    name: cognitoAuthorizer
+    type: COGNITO_USER_POOLS
+    arn: ${self:custom.userPoolArn}
+
+provider:
+  name: aws
+  runtime: nodejs24.x
+  architecture: arm64
+  stage: ${env:ENV_NAME, 'dev'}
+  region: ${env:REGION, 'us-east-2'}
+  # handlers read these instead of hardcoded names
+  environment:
+    GAMES_TABLE: ${self:custom.gamesTable}
+    SCREENSHOTS_TABLE: ${self:custom.screenshotsTable}
+    SCREENSHOT_BUCKET: ${self:custom.screenshotBucket}
+    ALLOWED_ORIGINS: http://localhost:4200,${self:custom.siteUrl}
+  # role is defined in resources at the bottom
+  iam:
+    role: LambdaRole
+  apiGateway:
+    usagePlan:
+      quota:
+        limit: 3000
+        period: MONTH
+
+functions:
+  loadGames:
+    handler: kassle-handlers.loadGames
+    events:
+      - http:
+          path: loadgames
+          method: get
+          cors: *cors
+          authorizer: *authorizer
+  loadLeader:
+    handler: kassle-handlers.loadLeader
+    events:
+      - http:
+          path: leaderboard
+          method: get
+          cors: *cors
+          authorizer: *authorizer
+  saveGame:
+    handler: kassle-handlers.saveGame
+    events:
+      - http:
+          path: savegames
+          method: post
+          cors: *cors
+          authorizer: *authorizer
+  saveWinner:
+    handler: kassle-handlers.saveWinner
+    events:
+      - http:
+          path: savewinner
+          method: post
+          cors: *cors
+          authorizer: *authorizer
+  saveScreenshot:
+    handler: kassle-handlers.saveScreenshot
+    events:
+      - http:
+          path: screenshot
+          method: post
+          cors: *cors
+          authorizer: *authorizer
+  loadScreenshots:
+    handler: kassle-handlers.loadScreenshots
+    events:
+      - http:
+          path: loadscreenshots
+          method: get
+          cors: *cors
+          authorizer: *authorizer
+  getScreenshotUrl:
+    handler: kassle-handlers.getScreenshotUrl
+    events:
+      - http:
+          path: screenshoturl
+          method: get
+          cors: *cors
+          authorizer: *authorizer
+
+
+resources:
+  Resources:
+    GatewayResponseDefault4XX:
+      Type: AWS::ApiGateway::GatewayResponse
+      Properties:
+        ResponseType: DEFAULT_4XX
+        RestApiId:
+          Ref: ApiGatewayRestApi
+        ResponseParameters:
+          gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+          gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+    GatewayResponseDefault5XX:
+      Type: AWS::ApiGateway::GatewayResponse
+      Properties:
+        ResponseType: DEFAULT_5XX
+        RestApiId:
+          Ref: ApiGatewayRestApi
+        ResponseParameters:
+          gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+          gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+
+    # role every lambda runs as
+    LambdaRole:
+      Type: AWS::IAM::Role
+      Properties:
+        RoleName: ${self:custom.prefix}-lambda-role
+        AssumeRolePolicyDocument:
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: lambda.amazonaws.com
+              Action: sts:AssumeRole
+        # lets the lambdas write to cloudwatch logs
+        ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        Policies:
+          - PolicyName: ${self:custom.prefix}-lambda-policy
+            PolicyDocument:
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - dynamodb:Scan
+                    - dynamodb:PutItem
+                    - dynamodb:UpdateItem
+                  Resource: arn:aws:dynamodb:${aws:region}:${aws:accountId}:table/${self:custom.gamesTable}
+                - Effect: Allow
+                  Action:
+                    - dynamodb:PutItem
+                    - dynamodb:Scan
+                  Resource: arn:aws:dynamodb:${aws:region}:${aws:accountId}:table/${self:custom.screenshotsTable}
+                - Effect: Allow
+                  Action:
+                    - s3:PutObject
+                  Resource: arn:aws:s3:::${self:custom.screenshotBucket}/screenshots/*
+                - Effect: Allow
+                  Action: s3:GetObject
+                  Resource: arn:aws:s3:::${self:custom.screenshotBucket}/*

@@ -1,0 +1,52 @@
+/* Default theme */
+:root {
+  --page-bg: #ffffff;
+  --text-color: #222222;
+  --square-bg: #eeeeee;
+  --border-color: #cccccc;
+  --player-red: #d63031;
+  --player-blue: #0984e3;
+  --player-red-name: "Red";
+  --player-blue-name: "Blue";
+}
+
+/* Dark theme */
+body.dark-theme {
+  --page-bg: #181818;
+  --text-color: #ffffff;
+  --square-bg: #333333;
+  --border-color: #666666;
+  --player-red: #ff79b0;
+  --player-blue: #42d9e8;
+  --player-red-name: "Pink";
+  --player-blue-name: "Turquoise";
+}
+
+/* Green and black theme */
+body.forest-theme {
+  --page-bg: #090d09;
+  --text-color: #b8ef86;
+  --square-bg: #172217;
+  --border-color: #507a32;
+  --player-red: #91e044;
+  --player-blue: black;
+  --player-red-name: "Green";
+  --player-blue-name: "Black";
+}
+
+/* Ocean theme */
+body.ocean-theme {
+  --page-bg: #eaf4fa;
+  --text-color: #18354a;
+  --square-bg: #cce3ef;
+  --border-color: #729bb3;
+  --player-red: #c34e36;
+  --player-blue: #087578;
+  --player-red-name: "Maroon";
+  --player-blue-name: "Ocean Green";
+}
+
+body {
+  background-color: var(--page-bg);
+  color: var(--text-color);
+}

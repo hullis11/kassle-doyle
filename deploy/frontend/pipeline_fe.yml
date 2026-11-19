@@ -1,0 +1,441 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: S3 Static Site using CloudFront for Pipeline-UI
+
+Parameters:
+
+  Cust:
+    Type: String
+    Default: changeme
+
+  App:
+    Type: String
+    Default: kassle
+
+  Env:
+    Type: String
+    Default: dev
+
+  Region:
+    Type: String
+    Default: us-east-2
+
+  BranchName:
+    Type: String
+    Default: main
+
+  # github repo for this customer, e.g. hullis11/kassle-custa
+  RepoName:
+    Type: String
+    Default: changeme
+
+  PipelineBucketID:
+    Type: String
+    Default: 6c670866de5c-45aa-9a79-6d0238639fb3
+
+  SiteName:
+    Type: String
+    Default: changeme
+
+  AwsAccount:
+    Type: String
+    Default: '550097745439'
+
+  CodeStarConnectionID:
+    Type: String
+    Default: 646d1507-a189-439b-90d3-52460574f90b
+
+  CacheName:
+    Type: String
+    Default: changeme
+
+  # not used yet, CloudFront is on its default certificate until ours is issued
+  SslCertArn:
+    Type: String
+    Default: arn:aws:acm:us-east-1:000000000000:certificate/00000000-0000-0000-0000-000000000000
+
+  # true = run the pipeline on every push to BranchName
+  AutoDeploy:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+
+  # added to IAM role names, leave blank unless names clash
+  IamSuffix:
+    Type: String
+    Default: ''
+
+Resources:
+
+# ---------------------------- Pipeline Section ----------------------------
+  Pipeline:
+    Type: AWS::CodePipeline::Pipeline
+    DependsOn: RolePipeline
+    Properties: 
+      PipelineType: V2
+      ArtifactStore: 
+        Location: !Join ['', ['codepipeline-', !Ref Region,'-', !Ref PipelineBucketID]]
+        Type: S3
+      Name: !Join ['-', [!Ref Cust, !Ref App, 'fe', !Ref Env]]
+      RestartExecutionOnUpdate: true
+      RoleArn: !GetAtt RolePipeline.Arn 
+      Stages: 
+        - Name: Source
+          Actions:
+            - Name: Source1
+              ActionTypeId: 
+                Version: '1'
+                Category: Source
+                Owner: AWS
+                Provider: CodeStarSourceConnection
+              OutputArtifacts: 
+                - Name: SrcArt1
+              Configuration:
+                ConnectionArn: !Join ['', ['arn:aws:codeconnections:',!Ref Region, ':', !Ref AwsAccount,':connection/', !Ref CodeStarConnectionID]]
+                FullRepositoryId: !Ref RepoName
+                BranchName: !Ref BranchName
+                # CODEBUILD_CLONE_REF hands CodeBuild a git reference rather than a zip, so the
+                # build gets a real .git and can read tags directly. CodeBuild clones using this
+                # connection's own credentials - no Bitbucket token is issued to anything.
+                OutputArtifactFormat: CODEBUILD_CLONE_REF
+                DetectChanges: !Ref AutoDeploy
+              # Exposes this action's output variables (CommitId, BranchName, AuthorDate,
+              # CommitMessage) to later stages as #{SourceVariables.<name>}. Without a Namespace
+              # they exist but cannot be referenced.
+              Namespace: SourceVariables
+            # Second checkout of the same repo/branch as a plain zip. CODEBUILD_CLONE_REF
+            # artifacts hold a git reference, not files, and may only be consumed by CodeBuild
+            # actions - so the CloudFormation action below needs this zip to read the template
+            # from. DetectChanges is off here so only Source1 triggers the pipeline.
+            - Name: Source2
+              ActionTypeId:
+                Version: '1'
+                Category: Source
+                Owner: AWS
+                Provider: CodeStarSourceConnection
+              OutputArtifacts:
+                - Name: SrcArt2
+              Configuration:
+                ConnectionArn: !Join ['', ['arn:aws:codeconnections:',!Ref Region, ':', !Ref AwsAccount,':connection/', !Ref CodeStarConnectionID]]
+                FullRepositoryId: !Ref RepoName
+                BranchName: !Ref BranchName
+                OutputArtifactFormat: CODE_ZIP
+                DetectChanges: false
+        - Name: Build
+          Actions:
+            - Name: CodeBuild
+              RunOrder: 1
+              ActionTypeId:
+                Version: '1'
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+              InputArtifacts:
+                - Name: SrcArt1
+              OutputArtifacts:
+                - Name: Build1Art1
+              Configuration:
+                ProjectName: !Ref CodeBuildProject
+                EnvironmentVariables: !Sub |
+                  [
+                    {"name":"CUST_NAME","value":"${Cust}","type":"PLAINTEXT"},
+                    {"name":"APP_NAME","value":"${App}","type":"PLAINTEXT"},
+                    {"name":"ENV_NAME","value":"${Env}","type":"PLAINTEXT"},
+                    {"name":"REGION","value":"${Region}","type":"PLAINTEXT"},
+                    {"name":"GIT_COMMIT","value":"#{SourceVariables.CommitId}","type":"PLAINTEXT"},
+                    {"name":"BRANCH_NAME","value":"#{SourceVariables.BranchName}","type":"PLAINTEXT"}
+                  ]
+              Namespace: Build1
+        - Name: CloudFormation
+          Actions: 
+            - Name: TestCloudFormation
+              RunOrder: 1
+              ActionTypeId: 
+                Version: '1'
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+              InputArtifacts: 
+                - Name: SrcArt2
+              Configuration:
+                ActionMode: CREATE_UPDATE
+                Capabilities: CAPABILITY_NAMED_IAM
+                ParameterOverrides: !Sub
+                  - '{"SiteName":"${siteName}", "CacheName":"${cacheName}", "SslCertArn":"${sslCertArn}"}'
+                  - siteName: !Ref SiteName
+                    cacheName: !Ref CacheName
+                    sslCertArn: !Ref SslCertArn
+                StackName: !Join ['-', [!Ref Cust, !Ref App, 'fe', !Ref Env]]
+                TemplatePath: 'SrcArt2::deploy/frontend/static-site-resources.yml'
+                RoleArn: !GetAtt RoleCloudFormationAction.Arn  
+        - Name: Deploy
+          Actions:
+            - Name: Deploy
+              RunOrder: 1
+              ActionTypeId: 
+                Version: '1'
+                Category: Deploy
+                Owner: AWS
+                Provider: S3
+              InputArtifacts: 
+                - Name: Build1Art1
+              Configuration:
+                BucketName: !Join ['', [ !Ref SiteName, '.com' ]] 
+                Extract: 'true'
+ 
+# ---------------------------- CodeBuild Section ----------------------------
+  CodeBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Join ['-',['Build_', !Ref Cust, !Ref App, 'fe', !Ref Env]]
+      Description: For compiling angular code to go into s3 bucket later
+      Artifacts: 
+        Type: CODEPIPELINE
+      Environment: 
+          ComputeType: BUILD_GENERAL1_SMALL
+          Image: aws/codebuild/amazonlinux2-x86_64-standard:5.0
+          Type: LINUX_CONTAINER
+      # Tags: 
+      #   - Tag
+      ServiceRole: !GetAtt RoleCodeBuildProject.Arn #arn:aws:iam::454398369650:role/service-role/codebuild-POC_Fargate_Pipeline_DockerBuild-service-role
+      Source:
+         BuildSpec: deploy/frontend/buildspec-fe.yml
+         Type: CODEPIPELINE
+      # TimeoutInMinutes: 10
+      Visibility: PRIVATE
+
+
+
+
+
+
+# ---------------------------- IAM Section ----------------------------
+
+  RolePipeline:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Join ['', [!Join ['-', ['CodePipelineServiceRole', !Ref Cust, !Ref App, 'fe', !Ref Env]], !Ref IamSuffix]]
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codepipeline.amazonaws.com
+            Action: 'sts:AssumeRole'
+
+  PipelineRolePolicies:
+    Type: AWS::IAM::Policy
+    DependsOn: RolePipeline
+    Properties:
+      PolicyName: !Join ['-',['CodePipelineServiceRolePolicies', !Ref Cust, !Ref App, 'fe', !Ref Env]]
+      Roles: 
+        - !Ref RolePipeline
+      PolicyDocument: 
+        Statement:
+        - Action:
+          - "iam:PassRole"
+          Resource: "*"
+          Effect: "Allow"
+          Condition:
+            StringEqualsIfExists:
+              iam:PassedToService:
+                - "cloudformation.amazonaws.com"
+                - "ec2.amazonaws.com"
+                - "ecs-tasks.amazonaws.com"
+        - Action:
+          - "codecommit:CancelUploadArchive"
+          - "codecommit:GetBranch"
+          - "codecommit:GetCommit"
+          - "codecommit:GetRepository"
+          - "codecommit:GetUploadArchiveStatus"
+          - "codecommit:UploadArchive"
+          Resource: "*"
+          Effect: "Allow"
+        - Action:
+          - "codedeploy:CreateDeployment"
+          - "codedeploy:GetApplication"
+          - "codedeploy:GetApplicationRevision"
+          - "codedeploy:GetDeployment"
+          - "codedeploy:GetDeploymentConfig"
+          - "codedeploy:RegisterApplicationRevision"
+          Resource: "*"
+          Effect: "Allow"
+        - Action:
+          - "codestar-connections:CreateConnection"
+          - "codestar-connections:GetInstallationUrl"
+          - "codestar-connections:UpdateHost"
+          - "codestar-connections:ListRepositoryLinks"
+          - "codestar-connections:CreateRepositoryLink"
+          - "codestar-connections:UpdateConnectionInstallation"
+          - "codestar-connections:ListTagsForResource"
+          - "codestar-connections:ListSyncConfigurations"
+          - "codestar-connections:ListInstallationTargets"
+          - "codestar-connections:UseConnection"
+          - "codestar-connections:PassRepository"
+          - "codestar-connections:UpdateSyncConfiguration"
+          - "codestar-connections:StartOAuthHandshake"
+          - "codestar-connections:GetHost"
+          - "codestar-connections:UpdateSyncBlocker"
+          - "codestar-connections:GetRepositoryLink"
+          - "codestar-connections:GetConnection"
+          - "codestar-connections:ListConnections"
+          - "codestar-connections:GetSyncConfiguration"
+          - "codestar-connections:GetIndividualAccessToken"
+          - "codestar-connections:GetSyncBlockerSummary"
+          - "codestar-connections:ListRepositorySyncDefinitions"
+          - "codestar-connections:GetResourceSyncStatus"
+          - "codestar-connections:UpdateRepositoryLink"
+          - "codestar-connections:ListHosts"
+          - "codestar-connections:GetRepositorySyncStatus"
+          - "codestar-connections:StartAppRegistrationHandshake"
+          - "codestar-connections:RegisterAppCode"
+          - "codestar-connections:PassConnection"
+          - "codestar-connections:CreateSyncConfiguration"
+          - "codestar-connections:CreateHost"
+          Resource:
+            - !Sub 
+              - "arn:aws:codeconnections:${region}:${account}:connection/${connection}"
+              - account: !Ref AwsAccount
+                region: !Ref Region
+                connection: !Ref CodeStarConnectionID
+          Effect: "Allow"
+        - Action:
+            - "cloudwatch:*"
+            - "s3:*"
+            - "cloudformation:*"
+          Resource: "*"
+          Effect: "Allow"
+        - Action:
+            - "cloudformation:CreateStack"
+            - "cloudformation:DeleteStack"
+            - "cloudformation:DescribeStacks"
+            - "cloudformation:UpdateStack"
+            - "cloudformation:CreateChangeSet"
+            - "cloudformation:DeleteChangeSet"
+            - "cloudformation:DescribeChangeSet"
+            - "cloudformation:ExecuteChangeSet"
+            - "cloudformation:SetStackPolicy"
+            - "cloudformation:ValidateTemplate"
+          Resource: "*"
+          Effect: "Allow"
+        - Action:
+            - "codebuild:BatchGetBuilds"
+            - "codebuild:StartBuild"
+            - "codebuild:BatchGetBuildBatches"
+            - "codebuild:StartBuildBatch"
+          Resource: "*"
+          Effect: "Allow"
+        - Effect: "Allow"
+          Action:
+            - "cloudformation:ValidateTemplate"
+          Resource: "*"
+    
+
+  RoleCodeBuildProject:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Join ['', [!Join ['-', ['CodeBuildServiceRole',!Ref Cust, !Ref App, 'fe', !Ref Env]], !Ref IamSuffix]]
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: 'sts:AssumeRole'
+
+  CodeBuildProjectRolePolicies:
+    Type: AWS::IAM::Policy
+    DependsOn: RoleCodeBuildProject
+    Properties:
+      PolicyName: !Join ['-', ['CodeBuildServiceRolePolicies', !Ref Cust, !Ref App, 'fe', !Ref Env]]
+      Roles: 
+        - !Ref RoleCodeBuildProject
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          # Required by CODEBUILD_CLONE_REF: CodeBuild performs the clone itself and must use
+          # the connection to authenticate. The pipeline role already holds this, but that grant
+          # does not extend to the build. Both action namespaces are listed because the service
+          # was renamed; the ConnectionArn above uses the newer `codeconnections` form.
+          - Effect: "Allow"
+            Action:
+              - "codestar-connections:UseConnection"
+              - "codeconnections:UseConnection"
+            Resource:
+              - !Join ['', ['arn:aws:codeconnections:',!Ref Region, ':', !Ref AwsAccount,':connection/', !Ref CodeStarConnectionID]]
+              - !Join ['', ['arn:aws:codestar-connections:',!Ref Region, ':', !Ref AwsAccount,':connection/', !Ref CodeStarConnectionID]]
+          - Effect: "Allow"
+            Action:
+              - "logs:CreateLogGroup"
+              - "logs:CreateLogStream"
+              - "logs:PutLogEvents"
+            Resource:
+              - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/Build*"
+              - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/Build*:*"
+              - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/Build*:log-stream:*"
+
+          - Effect: "Allow"
+            Action:
+              - "s3:PutObject"
+              - "s3:GetObject"
+              - "s3:GetObjectVersion"
+              - "s3:GetBucketAcl"
+              - "s3:GetBucketLocation"
+            Resource:
+              - !Sub "arn:aws:s3:::codepipeline-${AWS::Region}-${PipelineBucketID}"
+              - !Sub "arn:aws:s3:::codepipeline-${AWS::Region}-${PipelineBucketID}/*"
+          - Effect: "Allow"
+            Action:
+              - "codebuild:CreateReportGroup"
+              - "codebuild:CreateReport"
+              - "codebuild:UpdateReport"
+              - "codebuild:BatchPutTestCases"
+              - "codebuild:BatchPutCodeCoverages"
+            Resource:
+              - !Sub "arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:report-group/Build_*"
+          - Effect: "Allow"
+            Action: 
+              - "secretsmanager:ListSecrets"
+            Resource: 
+              - "*"
+          - Effect: "Allow"
+            Action:
+              - "secretsmanager:GetSecretValue"
+            Resource: 
+              - !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${Cust}/${App}/${Env}*"
+
+
+  RoleCloudFormationAction:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Join ['', [!Join ['-', ['CloudFormationActionServiceRole', !Ref Cust, !Ref App, 'fe', !Ref Env]], !Ref IamSuffix]]
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudformation.amazonaws.com
+            Action: 'sts:AssumeRole'
+
+  CloudFormationActionRolePolicies:
+    Type: AWS::IAM::Policy
+    DependsOn: RoleCloudFormationAction
+    Properties:
+      PolicyName: !Join ['-', ['CFNServiceRolePolicies', !Ref Cust, !Ref App, 'fe', !Ref Env]]
+      Roles: 
+        - !Ref RoleCloudFormationAction
+      PolicyDocument: 
+        Version: "2012-10-17"
+        Statement:
+          - Sid: "VisualEditor0"
+            Effect: "Allow"
+            Action: "cloudfront:*"
+            Resource: "*"
+          - Sid: "VisualEditor1"
+            Effect: "Allow"
+            Action: "route53:*"
+            Resource: "*"
+          - Sid: "VisualEditor2"
+            Effect: "Allow"
+            Action: "acm:*"
+            Resource: "*"
+          - Sid: "VisualEditor3"
+            Effect: "Allow"
+            Action: "s3:*"
+            Resource: "*"

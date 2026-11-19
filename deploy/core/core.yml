@@ -1,0 +1,102 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Core resources for Kassle (tables, screenshot bucket, blank secret)
+
+Parameters:
+
+  # customer name, lowercase since it goes into the bucket name
+  Cust:
+    Type: String
+    AllowedPattern: '^[a-z0-9-]+$'
+
+  App:
+    Type: String
+    Default: kassle
+
+  Env:
+    Type: String
+    Default: dev
+
+Resources:
+
+# ---------------------------- DynamoDB Section ----------------------------
+  # saved games and win/loss records (PK = username, SK = 'RECORD')
+  GamesTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Join ['-', [!Ref Cust, !Ref App, !Ref Env, 'games']]
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+
+  ScreenshotsTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Join ['-', [!Ref Cust, !Ref App, !Ref Env, 'screenshots']]
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: screenshotId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: screenshotId
+          KeyType: HASH
+
+# ---------------------------- S3 Section ----------------------------
+  ScreenshotBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Join ['-', [!Ref Cust, !Ref App, !Ref Env, 'screenshots']]
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - BucketKeyEnabled: true
+            ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+# ---------------------------- Secrets Section ----------------------------
+  # blank to start, filled in after auth and backend are deployed
+  AppSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Join ['/', [!Ref Cust, !Ref App, !Ref Env]]
+      Description: Values the frontend build reads
+      SecretString: '{"BACKEND_URL":"","AUTHORITY":"","COGNITO_CLIENT_ID":"","USER_POOL_ID":""}'
+
+Outputs:
+
+  GamesTableName:
+    Value: !Ref GamesTable
+    Export:
+      Name: !Join ['-', [!Ref Cust, !Ref App, !Ref Env, 'GamesTable']]
+
+  ScreenshotsTableName:
+    Value: !Ref ScreenshotsTable
+    Export:
+      Name: !Join ['-', [!Ref Cust, !Ref App, !Ref Env, 'ScreenshotsTable']]
+
+  ScreenshotBucketName:
+    Value: !Ref ScreenshotBucket
+    Export:
+      Name: !Join ['-', [!Ref Cust, !Ref App, !Ref Env, 'ScreenshotBucket']]
+
+  AppSecretArn:
+    Value: !Ref AppSecret
+    Export:
+      Name: !Join ['-', [!Ref Cust, !Ref App, !Ref Env, 'AppSecret']]

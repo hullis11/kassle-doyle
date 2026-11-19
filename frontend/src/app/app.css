@@ -1,0 +1,48 @@
+.full-layout{
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+}
+
+app-landing-page{
+    display: block;
+    width: 100%;
+}
+
+
+.login-screen {
+  position: fixed;
+  inset: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #111827;
+  color: white;
+  z-index: 9999;
+}
+
+.login-card {
+  padding: 2rem;
+  width: min(90%, 500px);
+}
+
+.login-card h1 {
+  letter-spacing: 0.15em;
+  margin-bottom: 1rem;
+}
+
+.login-card .btn {
+  min-width: 180px;
+}
+
+.flex-1 {
+  flex: 1;
+}
+
+/* 5px on each side for everything inside main */
+.app-main{
+    padding-inline: 5px;
+}

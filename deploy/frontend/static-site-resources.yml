@@ -1,0 +1,300 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Static Site Resources for Frontend in S3
+
+Parameters:
+  SiteName:
+    Type: String
+    Default: kassle.selwaymore
+
+  CacheName:
+    Type: String
+    Default: kasselwaymore
+
+  # not used yet, CloudFront is on its default certificate until ours is issued
+  SslCertArn:
+    Type: String
+    Default: arn:aws:acm:us-east-1:000000000000:certificate/00000000-0000-0000-0000-000000000000
+
+  # HostedZoneID:
+  #   Type: String
+  #   Default: Z0156896FMTDL701TLX7
+
+Resources:
+
+  # ---------------------------- S3 Section ----------------------------
+  Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Join
+        - ''
+        - - !Ref SiteName
+          - .com
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - BucketKeyEnabled: true
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      WebsiteConfiguration:
+        ErrorDocument: error.html
+        IndexDocument: index.html
+
+  BucketPolicy:
+    DependsOn:
+      - Bucket
+      - CloudFrontDistro
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref Bucket
+      PolicyDocument: 
+        Fn::Sub: 
+          - |
+            {
+                "Version": "2008-10-17",
+                "Id": "PolicyForCloudFrontPrivateContent",
+                "Statement": [
+                    {
+                        "Sid": "AllowCloudFrontServicePrincipal",
+                        "Effect": "Allow",
+                        "Principal": {
+                            "Service": "cloudfront.amazonaws.com"
+                        },
+                        "Action": "s3:GetObject",
+                        "Resource": "arn:aws:s3:::${BucketName}/*",
+                        "Condition": {
+                            "StringEquals": {
+                                "aws:SourceArn": "arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistroId}"
+                            }
+                        }
+                    }
+                ]
+            }
+          - BucketName: !Ref Bucket
+            CloudFrontDistroId: !GetAtt CloudFrontDistro.Id
+        
+       
+          # ---------------------------- ACM Certificate Section ----------------------------
+  # SSLCert:
+  #   Type: AWS::CertificateManager::Certificate
+  #   Properties:
+  #     CertificateTransparencyLoggingPreference: ENABLED
+  #     DomainName: !Join
+  #       - ''
+  #       - - !Ref SiteName
+  #         - .com
+  #     # DomainValidationOptions:
+  #     #   - DomainName: !Join
+  #     #       - ''
+  #     #       - - !Ref SiteName
+  #     #         - .com
+  #     #     HostedZoneId: !Ref HostedZoneID
+  #     KeyAlgorithm: RSA_2048
+  #     SubjectAlternativeNames:
+  #       - !Join
+  #         - ''
+  #         - - www.
+  #           - !Ref SiteName
+  #           - .com
+  #     # Tags: 
+  #     #   - Tag
+  #     ValidationMethod: DNS
+
+  # ---------------------------- Route53 DNS Section ----------------------------
+  # S3DnsRecord:
+  #   Type: AWS::Route53::RecordSet
+  #   Properties:
+  #     AliasTarget: 
+  #       DNSName: s3-website.us-east-2.amazonaws.com.
+  #       EvaluateTargetHealth: false
+  #       HostedZoneId: Z2O1EMRO9K5GLX #Value for us-east-2 s3 endpoints
+  #     HostedZoneId: Z05589202EGZ6E9PPUN2Z # Don't need with HostedZoneName
+  #     # HostedZoneName: scrapero.com
+  #     Name: staticsite.scrapero.com
+  #     # Region: us-east-2
+  #     # TTL: 300
+  #     Type: A
+
+  # S3DnsRecord:
+  #   Type: AWS::Route53::RecordSet
+  #   DependsOn: CloudFrontDistro
+  #   Properties:
+  #     HostedZoneId: !Ref HostedZoneID # Don't need with HostedZoneName
+  #     Name: !Join ['', [ !Ref SiteName, '.com']]
+  #     TTL: 300
+  #     Type: CNAME
+  #     ResourceRecords:
+  #       - !GetAtt CloudFrontDistro.DomainName
+
+  # S3DnsRecord:
+  #   Type: AWS::Route53::RecordSet
+  #   DependsOn: CloudFrontDistro
+  #   Properties:
+  #     AliasTarget:
+  #       DNSName: !GetAtt CloudFrontDistro.DomainName
+  #       EvaluateTargetHealth: false
+  #       HostedZoneId: Z2FDTNDATAQYW2 #AWS Cloudfront HostedZoneID
+  #     HostedZoneId: !Ref HostedZoneID # Don't need with HostedZoneName
+  #     Name: !Join
+  #       - ''
+  #       - - !Ref SiteName
+  #         - .com
+  #     # TTL: 300
+  #     Type: A
+
+  # S3DnsRecord2:
+  #   Type: AWS::Route53::RecordSet
+  #   DependsOn: CloudFrontDistro
+  #   Properties:
+  #     AliasTarget:
+  #       DNSName: !GetAtt CloudFrontDistro.DomainName
+  #       EvaluateTargetHealth: false
+  #       HostedZoneId: Z2FDTNDATAQYW2 #AWS Cloudfront HostedZoneID
+  #     HostedZoneId: !Ref HostedZoneID # Don't need with HostedZoneName
+  #     Name: !Join
+  #       - ''
+  #       - - www.
+  #         - !Ref SiteName
+  #         - .com
+  #     # TTL: 300
+  #     Type: A
+
+  # ---------------------------- CloudFront Section ----------------------------
+
+  CloudFrontDistro:
+    Type: AWS::CloudFront::Distribution
+    DependsOn: 
+      # - SSLCert
+      - OriginAccessControl
+    Properties:
+      DistributionConfig:
+        Comment: kassle frontend
+        CustomErrorResponses:
+          - ErrorCachingMinTTL: 300
+            ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+          - ErrorCachingMinTTL: 300
+            ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+        DefaultCacheBehavior:
+          AllowedMethods:
+            - GET
+            - HEAD
+          CachedMethods:
+            - GET
+            - HEAD
+          CachePolicyId: !Ref CachePolicy
+          ResponseHeadersPolicyId: !Ref SecurityHeadersPolicy
+          Compress: true
+          TargetOriginId: origin1
+          ViewerProtocolPolicy: redirect-to-https
+        DefaultRootObject: index.html
+        Enabled: true
+        Origins:
+          - ConnectionAttempts: 3
+            ConnectionTimeout: 10
+            # The site bucket's own Region-specific name, so the DR copy of this stack (deploy/DR.md)
+            # points at its own bucket. Same value as before in us-east-2.
+            DomainName: !GetAtt Bucket.RegionalDomainName
+            Id: origin1
+            OriginAccessControlId: !GetAtt OriginAccessControl.Id
+            # CustomOriginConfig:
+            #   OriginProtocolPolicy: https-only
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+        # default dxxxx.cloudfront.net cert for now, switch to SslCertArn + Aliases once ours is issued
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true
+
+  OriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        # Name is just a label (max 64 chars); the wiring is via OriginAccessControlId below. The
+        # old value appended ".com.s3.<region>.amazonaws.com" which pushed longer customer names
+        # (e.g. combinedbrain) over the 64-char limit -> "Invalid request provided".
+        Name: !Sub "${SiteName}-oac"
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  CachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Properties:
+      CachePolicyConfig:
+        Comment: From Pipeline, Policy with caching enabled. Supports Gzip and Brotli
+          compression.
+        DefaultTTL: 60
+        MaxTTL: 86400 #31536000
+        MinTTL: 1
+        Name: !Join
+          - ''
+          - - Pipeline-Created-Policy-
+            - !Ref CacheName
+        ParametersInCacheKeyAndForwardedToOrigin:
+          CookiesConfig:
+            CookieBehavior: none
+          EnableAcceptEncodingBrotli: true
+          EnableAcceptEncodingGzip: true
+          HeadersConfig:
+            HeaderBehavior: none
+          QueryStringsConfig:
+            QueryStringBehavior: none
+
+  SecurityHeadersPolicy:
+    Type: AWS::CloudFront::ResponseHeadersPolicy
+    Properties:
+      ResponseHeadersPolicyConfig:
+        Name: !Sub "${CacheName}-security-headers"
+        Comment: Security headers for Angular application
+        SecurityHeadersConfig:
+          StrictTransportSecurity:
+            AccessControlMaxAgeSec: 31536000
+            IncludeSubdomains: true
+            Preload: true
+            Override: true
+          # Scripts are 'self' only - no 'unsafe-inline'/'unsafe-eval' - so injected markup can't run
+          # script. That needs inlineCritical: false in frontend/angular.json: critical-CSS inlining
+          # loads the main stylesheet with an inline onload="this.media='all'" handler, which this
+          # blocks, leaving the page unstyled. style-src keeps 'unsafe-inline' for Angular component
+          # styles and the inlined Google Fonts CSS. Verified report-only before enforcing.
+          # connect-src stays broad here because the hosts are per customer; the exact list is a CSP
+          # <meta> tag the build writes into index.html (deploy/frontend/buildspec-fe.yml), and the
+          # browser enforces both, so that list is what actually applies.
+          ContentSecurityPolicy:
+            ContentSecurityPolicy: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; font-src 'self' https://fonts.gstatic.com data:; connect-src 'self' https:; frame-ancestors 'none'; base-uri 'self'; object-src 'none'"
+            Override: true
+          ContentTypeOptions:
+            Override: true
+          FrameOptions:
+            FrameOption: DENY
+            Override: true
+          ReferrerPolicy:
+            ReferrerPolicy: strict-origin-when-cross-origin
+            Override: true
+        CustomHeadersConfig:
+          Items:
+            - Header: Permissions-Policy
+              Value: "geolocation=(), microphone=(), camera=(), payment=(), usb=()"
+              Override: true
+            - Header: X-Robots-Tag
+              Value: "noindex, nofollow"
+              Override: true
+            # - Header: Clear-Site-Data
+            #   Value: '"cache", "cookies", "storage", "executionContexts"'
+            #   Override: true
+            - Header: Cross-Origin-Opener-Policy
+              Value: "same-origin"
+              Override: true
+            - Header: Cross-Origin-Resource-Policy
+              Value: "same-origin"
+              Override: true
+            - Header: X-Permitted-Cross-Domain-Policies
+              Value: "none"
+              Override: true
+            - Header: NEL
+              Value: '{"report_to":"default","max_age":31536000,"include_subdomains":true}'
+              Override: true

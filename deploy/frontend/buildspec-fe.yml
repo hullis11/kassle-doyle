@@ -1,0 +1,43 @@
+version: 0.2
+
+env:
+  secrets-manager:
+    BACKEND_URL: $CUST_NAME/$APP_NAME/$ENV_NAME:BACKEND_URL
+    AUTHORITY: $CUST_NAME/$APP_NAME/$ENV_NAME:AUTHORITY
+    COGNITO_CLIENT_ID: $CUST_NAME/$APP_NAME/$ENV_NAME:COGNITO_CLIENT_ID
+
+phases:
+  install:
+    commands:
+      - n 22
+      - node -v
+  pre_build:
+    commands:
+      - cd frontend
+      - npm i
+
+  build:
+    commands:
+      - mkdir -p src/environments
+      - |
+        cat > src/environments/environment.ts <<EOF
+        export const environment = {
+          backendUrl: '$BACKEND_URL',
+          authority: '$AUTHORITY',
+          clientId: '$COGNITO_CLIENT_ID'
+        };
+        EOF
+      - cat src/environments/environment.ts
+
+      - node_modules/.bin/ng build --configuration production
+
+      - ls dist/Kassle
+      - mv dist/Kassle/browser/* dist/Kassle/
+      - ls dist/Kassle
+
+artifacts:
+  files:
+    - '**/*'
+  base-directory: 'frontend/dist/Kassle'
+  name: Build1Art1
+  discard-paths: no

@@ -1,0 +1,91 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Cognito login for Kassle (user pool, app client, hosted UI domain)
+
+Parameters:
+
+  # customer name, lowercase since it goes into the login domain
+  Cust:
+    Type: String
+    AllowedPattern: '^[a-z0-9-]+$'
+
+  App:
+    Type: String
+    Default: kassle
+
+  Env:
+    Type: String
+    Default: dev
+
+  # where cognito can send users after login/logout, add the customer's site url once it exists
+  CallbackUrls:
+    Type: CommaDelimitedList
+    Default: http://localhost:4200
+
+Resources:
+
+# ---------------------------- Cognito Section ----------------------------
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      UserPoolName: !Join ['-', [!Ref Cust, !Ref App, !Ref Env, 'users']]
+      AutoVerifiedAttributes:
+        - email
+      Schema:
+        - Name: email
+          Required: true
+          Mutable: true
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: !Join ['-', [!Ref Cust, !Ref App, !Ref Env, 'web']]
+      UserPoolId: !Ref UserPool
+      GenerateSecret: false
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows:
+        - code
+      AllowedOAuthScopes:
+        - openid
+        - email
+        - profile
+      CallbackURLs: !Ref CallbackUrls
+      LogoutURLs: !Ref CallbackUrls
+      SupportedIdentityProviders:
+        - COGNITO
+
+  # hosted ui login page, prefix has to be unique in the region
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: !Join ['-', [!Ref Cust, !Ref App, !Ref Env]]
+      UserPoolId: !Ref UserPool
+
+  AdminGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      GroupName: adminUserRole
+      UserPoolId: !Ref UserPool
+
+Outputs:
+
+  UserPoolId:
+    Value: !Ref UserPool
+    Export:
+      Name: !Join ['-', [!Ref Cust, !Ref App, !Ref Env, 'UserPoolId']]
+
+  # backend authorizer needs the arn
+  UserPoolArn:
+    Value: !GetAtt UserPool.Arn
+    Export:
+      Name: !Join ['-', [!Ref Cust, !Ref App, !Ref Env, 'UserPoolArn']]
+
+  UserPoolClientId:
+    Value: !Ref UserPoolClient
+    Export:
+      Name: !Join ['-', [!Ref Cust, !Ref App, !Ref Env, 'UserPoolClientId']]
+
+  # goes into the secret as AUTHORITY
+  Authority:
+    Value: !Sub 'https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}'

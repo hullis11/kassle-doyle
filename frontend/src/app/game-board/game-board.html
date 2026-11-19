@@ -1,0 +1,168 @@
+<div class = "game-layout mt-3">
+    <div class = "start-over d-flex gap-3 flex-column align-items-start rounded">
+
+        <h2 class = "current-player">Current Player: 
+            {{ game.player === 'Red' ? game.redUsername : game.blueUsername }}
+        </h2>
+
+        <div
+            class="player-color-name display-10 text-center"
+            [class.red]="game.player === 'Red'"
+            [class.blue]="game.player === 'Blue'">
+        </div>
+
+        
+            <button class = "btn btn-primary" (click) = "saveGame()">Save Current Game</button>
+            <button class="btn btn-primary" (click)="saveScreenshot()">
+                     Save Screenshot
+            </button>
+            <button class = "btn btn-primary" (click) = "listGames = true">Open Previous Game
+            </button>
+                <h2 class="align-items-center"></h2>
+                <ul class = "list-unstyled d-flex flex-column gap-2">
+                    @if (listGames) {
+                        @for (savedGame of gameService.gameSaves;
+                            track savedGame.dateTime.getTime()) {
+                            <li>
+                                <button class="btn btn-secondary" (click)="restoreGame(savedGame.dateTime)">
+                                    <span class = "d-block fw-bold">
+                                        {{savedGame.redUsername}} vs {{savedGame.blueUsername}}
+                                    </span>
+
+                                    <small class = "d-block">
+                                        {{savedGame.dateTime.toLocaleString()}}
+                                    </small>
+
+                                </button>
+                            </li>
+                        }
+                    }
+                </ul>
+    </div>
+
+    <div class = "shifting-layout">
+        <div class="top-button">
+            @for(button of game.buttonsList; track button.name){
+                @if (button.axis === 'column' && button.direction === 'down'){
+                    <button class="btn btn-secondary p-0"
+                        [disabled]=
+                            "gameService.revShift('column', button.index,
+                            'down', game)"
+                        [class.text-decoration-line-through] = "gameService.revShift('column', button.index,
+                            'down', game)"
+                        (click) =
+                            "gameService.shiftColumn(button.index,
+                            'down', game)"
+                    >↓</button>
+                }
+            }
+        </div>
+
+        <div class = "board-middle">
+            <div class="left-button">
+                @for (button of game.buttonsList; track button.name){
+                    @if(button.direction == 'right'){
+                        <button class="btn btn-secondary p-0"
+                            [disabled]="gameService.revShift('row', button.index,
+                                'right', game)"
+                            [class.text-decoration-line-through]="gameService.revShift('row', button.index,
+                                'right', game)"
+                            (click) =
+                                "gameService.shiftRow(button.index, 'right', game)"
+                        >→</button>
+                    }
+                }
+            </div>
+
+            <main class="position-relative">
+                @for (val of game.squares; track $index; let i=$index) {
+                    <app-square
+                        [value] = "val"
+                        (click) = "gameService.makeMove(game, i)">
+                    </app-square>
+                }
+
+                @if (gameService.activeGame?.winner) {
+                    <div class = "win-overlay fs-3 d-flex
+                                  top-50 start-50 position-absolute
+                                  translate-middle
+                                  justify-content-center align-items-center">
+                        <h2>
+                        {{
+                            game.winner === 'Red'
+                            ?game.redUsername
+                            : game.blueUsername
+                            }} WON THE GAME!
+                        </h2>
+                    </div>
+}
+            </main>
+
+            <div class="right-button">
+                @for (button of game.buttonsList; track button.name) {
+                    @if(button.direction === 'left'){
+                        <button class="btn btn-secondary p-0"
+                            [disabled]="gameService.revShift('row', button.index,
+                                'left',game )"
+                            [class.text-decoration-line-through]="gameService.revShift('row', button.index,
+                                'left',game )"
+                            (click) =
+                                "gameService.shiftRow(button.index, 'left', game)"
+                        >←</button>
+                    }
+                }
+            </div>
+        </div>
+
+        <div class="bottom-button">
+            @for(button of game.buttonsList; track button.name){
+                @if(button.direction === 'up'){
+                    <button class="btn btn-secondary p-0"
+                        [disabled]="gameService.revShift('column', button.index,
+                            'up', game)"
+                        [class.text-decoration-line-through]="gameService.revShift('column', button.index,
+                            'up', game)"
+                        (click) =
+                            "gameService.shiftColumn(button.index, 'up',
+                            game)"
+                    >↑</button>
+                }
+            }
+        </div>
+    </div>
+
+    <div class = "move-history flex-column gap-3 rounded me-3">
+
+        <div class="border rounded p-3">
+            <h2 class="text-center mb-1 fs-6">Leaderboard</h2>
+                <ul class="list-unstyled mb-0 small">
+                    @for (record of gameService.leaderboardArray(); track record.username) {
+                        <li class="d-flex justify-content-between gap-3 py-1 border-bottom">
+                        <span>{{ record.username }}</span>
+                        <span>{{ record.wins }} W / {{ record.losses }} L</span>
+                        </li>
+            }
+                </ul>
+        </div>
+
+        <div class = "border rounded p-3">
+        <h2>Move history</h2>
+
+
+        @for (move of game.moveHistory; track $index) {
+            <div class="moves">
+                <span
+                    class="player-color-name"
+                    [class.red]="move.player === 'Red'"
+                    [class.blue]="move.player === 'Blue'">
+                </span>:
+
+                @if (move.kind === 'place') {
+                    placed on square {{ move.index + 1 }}
+                } @else {
+                    shifted {{ move.axis }} {{ move.index + 1 }} {{ move.direction }}
+                }
+            </div>
+        }
+        </div>
+    </div>

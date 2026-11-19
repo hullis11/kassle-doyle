@@ -1,0 +1,12 @@
+.tile {
+    width: 100%;
+    height: 100%;
+}
+
+.tile.red{
+    background-color: var(--player-red, red);
+}
+
+.tile.blue{
+    background-color: var(--player-blue, blue);
+}

@@ -1,0 +1,795 @@
+[{
+  "player": "Blue",
+  "winner": null,
+  "shiftLastTurn": true,
+  "gameId": "aef19d72-da14-4b8d-b592-544cb868c3d2",
+  "dateTime": "2026-10-15T14:47:08.707Z",
+  "squares": [
+    "Red",
+    "Red",
+    "Red",
+    "Red",
+    null,
+    "Red",
+    null,
+    "Blue",
+    null,
+    null,
+    null,
+    "Blue",
+    null,
+    "Blue",
+    null,
+    null,
+    null,
+    "Blue",
+    "Blue",
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "buttonsList": [
+    {
+      "name": "L1",
+      "axis": "row",
+      "direction": "right",
+      "opposite": "R1",
+      "index": 0
+    },
+    {
+      "name": "L2",
+      "axis": "row",
+      "direction": "right",
+      "opposite": "R2",
+      "index": 1
+    },
+    {
+      "name": "L3",
+      "axis": "row",
+      "direction": "right",
+      "opposite": "R3",
+      "index": 2
+    },
+    {
+      "name": "L4",
+      "axis": "row",
+      "direction": "right",
+      "opposite": "R4",
+      "index": 3
+    },
+    {
+      "name": "L5",
+      "axis": "row",
+      "direction": "right",
+      "opposite": "R5",
+      "index": 4
+    },
+    {
+      "name": "B1",
+      "axis": "column",
+      "direction": "up",
+      "opposite": "T1",
+      "index": 0
+    },
+    {
+      "name": "B2",
+      "axis": "column",
+      "direction": "up",
+      "opposite": "T2",
+      "index": 1
+    },
+    {
+      "name": "B3",
+      "axis": "column",
+      "direction": "up",
+      "opposite": "T3",
+      "index": 2
+    },
+    {
+      "name": "B4",
+      "axis": "column",
+      "direction": "up",
+      "opposite": "T4",
+      "index": 3
+    },
+    {
+      "name": "B5",
+      "axis": "column",
+      "direction": "up",
+      "opposite": "T5",
+      "index": 4
+    },
+    {
+      "name": "R1",
+      "axis": "row",
+      "direction": "left",
+      "opposite": "L1",
+      "index": 0
+    },
+    {
+      "name": "R2",
+      "axis": "row",
+      "direction": "left",
+      "opposite": "L2",
+      "index": 1
+    },
+    {
+      "name": "R3",
+      "axis": "row",
+      "direction": "left",
+      "opposite": "L3",
+      "index": 2
+    },
+    {
+      "name": "R4",
+      "axis": "row",
+      "direction": "left",
+      "opposite": "L4",
+      "index": 3
+    },
+    {
+      "name": "R5",
+      "axis": "row",
+      "direction": "left",
+      "opposite": "L5",
+      "index": 4
+    },
+    {
+      "name": "T1",
+      "axis": "column",
+      "direction": "down",
+      "opposite": "B1",
+      "index": 0
+    },
+    {
+      "name": "T2",
+      "axis": "column",
+      "direction": "down",
+      "opposite": "B2",
+      "index": 1
+    },
+    {
+      "name": "T3",
+      "axis": "column",
+      "direction": "down",
+      "opposite": "B3",
+      "index": 2
+    },
+    {
+      "name": "T4",
+      "axis": "column",
+      "direction": "down",
+      "opposite": "B4",
+      "index": 3
+    },
+    {
+      "name": "T5",
+      "axis": "column",
+      "direction": "down",
+      "opposite": "B5",
+      "index": 4
+    }
+  ],
+  "redUsername": "Ike",
+  "blueUsername": "Noah",
+  "moveHistory": [
+    {
+      "player": "Red",
+      "kind": "place",
+      "index": 0
+    },
+    {
+      "player": "Blue",
+      "kind": "place",
+      "index": 7
+    },
+    {
+      "player": "Red",
+      "kind": "place",
+      "index": 5
+    },
+    {
+      "player": "Blue",
+      "kind": "place",
+      "index": 10
+    },
+    {
+      "player": "Red",
+      "kind": "place",
+      "index": 2
+    },
+    {
+      "player": "Blue",
+      "kind": "place",
+      "index": 12
+    },
+    {
+      "player": "Red",
+      "kind": "place",
+      "index": 1
+    },
+    {
+      "player": "Blue",
+      "kind": "place",
+      "index": 16
+    },
+    {
+      "player": "Red",
+      "kind": "place",
+      "index": 3
+    },
+    {
+      "player": "Blue",
+      "kind": "shift",
+      "axis": "row",
+      "direction": "right",
+      "opposite": "R4",
+      "index": 3
+    },
+    {
+      "player": "Red",
+      "kind": "shift",
+      "axis": "row",
+      "direction": "right",
+      "opposite": "R3",
+      "index": 2
+    },
+    {
+      "player": "Blue",
+      "kind": "place",
+      "index": 18
+    }
+  ]
+},
+
+{
+  "player": "Blue",
+  "winner": null,
+  "shiftLastTurn": true,
+  "gameId": "17bfeaf8-376b-4220-88fa-0e0c2efb198d",
+  "dateTime": "2026-10-15T14:48:49.569Z",
+  "squares": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    "Blue",
+    "Blue",
+    null,
+    null,
+    "Red",
+    "Red",
+    null,
+    null,
+    "Blue",
+    "Red",
+    null,
+    "Red",
+    "Blue",
+    null,
+    null,
+    null,
+    "Blue",
+    "Red",
+    null
+  ],
+  "buttonsList": [
+    {
+      "name": "L1",
+      "axis": "row",
+      "direction": "right",
+      "opposite": "R1",
+      "index": 0
+    },
+    {
+      "name": "L2",
+      "axis": "row",
+      "direction": "right",
+      "opposite": "R2",
+      "index": 1
+    },
+    {
+      "name": "L3",
+      "axis": "row",
+      "direction": "right",
+      "opposite": "R3",
+      "index": 2
+    },
+    {
+      "name": "L4",
+      "axis": "row",
+      "direction": "right",
+      "opposite": "R4",
+      "index": 3
+    },
+    {
+      "name": "L5",
+      "axis": "row",
+      "direction": "right",
+      "opposite": "R5",
+      "index": 4
+    },
+    {
+      "name": "B1",
+      "axis": "column",
+      "direction": "up",
+      "opposite": "T1",
+      "index": 0
+    },
+    {
+      "name": "B2",
+      "axis": "column",
+      "direction": "up",
+      "opposite": "T2",
+      "index": 1
+    },
+    {
+      "name": "B3",
+      "axis": "column",
+      "direction": "up",
+      "opposite": "T3",
+      "index": 2
+    },
+    {
+      "name": "B4",
+      "axis": "column",
+      "direction": "up",
+      "opposite": "T4",
+      "index": 3
+    },
+    {
+      "name": "B5",
+      "axis": "column",
+      "direction": "up",
+      "opposite": "T5",
+      "index": 4
+    },
+    {
+      "name": "R1",
+      "axis": "row",
+      "direction": "left",
+      "opposite": "L1",
+      "index": 0
+    },
+    {
+      "name": "R2",
+      "axis": "row",
+      "direction": "left",
+      "opposite": "L2",
+      "index": 1
+    },
+    {
+      "name": "R3",
+      "axis": "row",
+      "direction": "left",
+      "opposite": "L3",
+      "index": 2
+    },
+    {
+      "name": "R4",
+      "axis": "row",
+      "direction": "left",
+      "opposite": "L4",
+      "index": 3
+    },
+    {
+      "name": "R5",
+      "axis": "row",
+      "direction": "left",
+      "opposite": "L5",
+      "index": 4
+    },
+    {
+      "name": "T1",
+      "axis": "column",
+      "direction": "down",
+      "opposite": "B1",
+      "index": 0
+    },
+    {
+      "name": "T2",
+      "axis": "column",
+      "direction": "down",
+      "opposite": "B2",
+      "index": 1
+    },
+    {
+      "name": "T3",
+      "axis": "column",
+      "direction": "down",
+      "opposite": "B3",
+      "index": 2
+    },
+    {
+      "name": "T4",
+      "axis": "column",
+      "direction": "down",
+      "opposite": "B4",
+      "index": 3
+    },
+    {
+      "name": "T5",
+      "axis": "column",
+      "direction": "down",
+      "opposite": "B5",
+      "index": 4
+    }
+  ],
+  "redUsername": "Ike",
+  "blueUsername": "Noah",
+  "moveHistory": [
+    {
+      "player": "Red",
+      "kind": "place",
+      "index": 11
+    },
+    {
+      "player": "Blue",
+      "kind": "place",
+      "index": 8
+    },
+    {
+      "player": "Red",
+      "kind": "place",
+      "index": 18
+    },
+    {
+      "player": "Blue",
+      "kind": "place",
+      "index": 19
+    },
+    {
+      "player": "Red",
+      "kind": "place",
+      "index": 16
+    },
+    {
+      "player": "Blue",
+      "kind": "place",
+      "index": 6
+    },
+    {
+      "player": "Red",
+      "kind": "place",
+      "index": 10
+    },
+    {
+      "player": "Blue",
+      "kind": "place",
+      "index": 13
+    },
+    {
+      "player": "Red",
+      "kind": "shift",
+      "axis": "column",
+      "direction": "down",
+      "index": 3,
+      "opposite": "B4"
+    },
+    {
+      "player": "Blue",
+      "kind": "shift",
+      "axis": "row",
+      "direction": "left",
+      "opposite": "L4",
+      "index": 3
+    },
+    {
+      "player": "Red",
+      "kind": "shift",
+      "axis": "row",
+      "direction": "right",
+      "opposite": "R3",
+      "index": 2
+    },
+    {
+      "player": "Blue",
+      "kind": "shift",
+      "axis": "column",
+      "direction": "up",
+      "index": 0,
+      "opposite": "T1"
+    },
+    {
+      "player": "Red",
+      "kind": "place",
+      "index": 15
+    },
+    {
+      "player": "Blue",
+      "kind": "place",
+      "index": 2
+    },
+    {
+      "player": "Red",
+      "kind": "shift",
+      "axis": "column",
+      "direction": "down",
+      "index": 2,
+      "opposite": "B3"
+    }
+  ]
+},
+
+{
+  "player": "Red",
+  "winner": null,
+  "shiftLastTurn": true,
+  "gameId": "a3fe2ee6-9619-4c23-9fd5-5dc207544f55",
+  "dateTime": "2026-10-15T14:50:45.888Z",
+  "squares": [
+    null,
+    null,
+    "Red",
+    "Red",
+    null,
+    "Red",
+    "Blue",
+    "Blue",
+    "Blue",
+    null,
+    null,
+    null,
+    "Red",
+    "Blue",
+    null,
+    "Red",
+    "Blue",
+    "Red",
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "buttonsList": [
+    {
+      "name": "L1",
+      "axis": "row",
+      "direction": "right",
+      "opposite": "R1",
+      "index": 0
+    },
+    {
+      "name": "L2",
+      "axis": "row",
+      "direction": "right",
+      "opposite": "R2",
+      "index": 1
+    },
+    {
+      "name": "L3",
+      "axis": "row",
+      "direction": "right",
+      "opposite": "R3",
+      "index": 2
+    },
+    {
+      "name": "L4",
+      "axis": "row",
+      "direction": "right",
+      "opposite": "R4",
+      "index": 3
+    },
+    {
+      "name": "L5",
+      "axis": "row",
+      "direction": "right",
+      "opposite": "R5",
+      "index": 4
+    },
+    {
+      "name": "B1",
+      "axis": "column",
+      "direction": "up",
+      "opposite": "T1",
+      "index": 0
+    },
+    {
+      "name": "B2",
+      "axis": "column",
+      "direction": "up",
+      "opposite": "T2",
+      "index": 1
+    },
+    {
+      "name": "B3",
+      "axis": "column",
+      "direction": "up",
+      "opposite": "T3",
+      "index": 2
+    },
+    {
+      "name": "B4",
+      "axis": "column",
+      "direction": "up",
+      "opposite": "T4",
+      "index": 3
+    },
+    {
+      "name": "B5",
+      "axis": "column",
+      "direction": "up",
+      "opposite": "T5",
+      "index": 4
+    },
+    {
+      "name": "R1",
+      "axis": "row",
+      "direction": "left",
+      "opposite": "L1",
+      "index": 0
+    },
+    {
+      "name": "R2",
+      "axis": "row",
+      "direction": "left",
+      "opposite": "L2",
+      "index": 1
+    },
+    {
+      "name": "R3",
+      "axis": "row",
+      "direction": "left",
+      "opposite": "L3",
+      "index": 2
+    },
+    {
+      "name": "R4",
+      "axis": "row",
+      "direction": "left",
+      "opposite": "L4",
+      "index": 3
+    },
+    {
+      "name": "R5",
+      "axis": "row",
+      "direction": "left",
+      "opposite": "L5",
+      "index": 4
+    },
+    {
+      "name": "T1",
+      "axis": "column",
+      "direction": "down",
+      "opposite": "B1",
+      "index": 0
+    },
+    {
+      "name": "T2",
+      "axis": "column",
+      "direction": "down",
+      "opposite": "B2",
+      "index": 1
+    },
+    {
+      "name": "T3",
+      "axis": "column",
+      "direction": "down",
+      "opposite": "B3",
+      "index": 2
+    },
+    {
+      "name": "T4",
+      "axis": "column",
+      "direction": "down",
+      "opposite": "B4",
+      "index": 3
+    },
+    {
+      "name": "T5",
+      "axis": "column",
+      "direction": "down",
+      "opposite": "B5",
+      "index": 4
+    }
+  ],
+  "redUsername": "Ike",
+  "blueUsername": "liam",
+  "moveHistory": [
+    {
+      "player": "Red",
+      "kind": "place",
+      "index": 7
+    },
+    {
+      "player": "Blue",
+      "kind": "place",
+      "index": 11
+    },
+    {
+      "player": "Red",
+      "kind": "place",
+      "index": 22
+    },
+    {
+      "player": "Blue",
+      "kind": "place",
+      "index": 2
+    },
+    {
+      "player": "Red",
+      "kind": "place",
+      "index": 13
+    },
+    {
+      "player": "Blue",
+      "kind": "place",
+      "index": 18
+    },
+    {
+      "player": "Red",
+      "kind": "place",
+      "index": 15
+    },
+    {
+      "player": "Blue",
+      "kind": "place",
+      "index": 5
+    },
+    {
+      "player": "Red",
+      "kind": "place",
+      "index": 9
+    },
+    {
+      "player": "Blue",
+      "kind": "place",
+      "index": 14
+    },
+    {
+      "player": "Red",
+      "kind": "place",
+      "index": 1
+    },
+    {
+      "player": "Blue",
+      "kind": "shift",
+      "axis": "column",
+      "direction": "down",
+      "index": 1,
+      "opposite": "B2"
+    },
+    {
+      "player": "Red",
+      "kind": "shift",
+      "axis": "row",
+      "direction": "left",
+      "opposite": "L3",
+      "index": 2
+    },
+    {
+      "player": "Blue",
+      "kind": "shift",
+      "axis": "row",
+      "direction": "right",
+      "opposite": "R2",
+      "index": 1
+    },
+    {
+      "player": "Red",
+      "kind": "shift",
+      "axis": "column",
+      "direction": "down",
+      "index": 2,
+      "opposite": "B3"
+    },
+    {
+      "player": "Blue",
+      "kind": "shift",
+      "axis": "column",
+      "direction": "up",
+      "index": 3,
+      "opposite": "T4"
+    }
+  ]
+}
+]
+
