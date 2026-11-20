@@ -7,10 +7,16 @@ Parameters:
   Cust:
     Type: String
     AllowedPattern: '^[a-z0-9-]+$'
+    Default: test1
 
   App:
     Type: String
     Default: kassle
+
+  # which layer this is (core/auth/backend/frontend), the pipeline passes it in
+  Stage:
+    Type: String
+    Default: auth
 
   Env:
     Type: String

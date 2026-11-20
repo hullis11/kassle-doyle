@@ -11,7 +11,7 @@ Parameters:
   Cust:
     Type: String
     AllowedPattern: '^[a-z0-9-]+$'
-    Default: doyle
+    Default: test1
 
   App:
     Type: String

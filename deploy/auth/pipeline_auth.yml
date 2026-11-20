@@ -1,0 +1,173 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Auth pipeline for Kassle (deploys auth.yml - cognito user pool, app client, login domain)
+
+# deploy this once per customer by hand, after that the pipeline runs on every push
+# creates: pipeline-{cust}-{app}-{stage}-{env}, e.g. pipeline-doyle-kassle-auth-dev
+# run AFTER the core pipeline has finished
+# no codebuild here, cognito is all cloudformation so there's nothing to build or run
+
+Parameters:
+
+  # ---------------------------- Naming ----------------------------
+  # customer name, lowercase since it ends up in the login domain
+  Cust:
+    Type: String
+    AllowedPattern: '^[a-z0-9-]+$'
+    Default: test1
+
+  App:
+    Type: String
+    Default: kassle
+
+  Stage:
+    Type: String
+    Default: auth
+
+  Env:
+    Type: String
+    Default: dev
+
+  # ---------------------------- Source ----------------------------
+  # github repo, edit for each customer
+  RepoName:
+    Type: String
+    Default: hullis11/kassle-doyle
+
+  BranchName:
+    Type: String
+    Default: main
+
+  # id at the end of the github connection's arn (Developer Tools > Settings > Connections)
+  # shared by every customer, made once by hand
+  CodeStarConnectionID:
+    Type: String
+    Default: 646d1507-a189-439b-90d3-52460574f90b
+
+  # ---------------------------- Pipeline ----------------------------
+  # existing bucket where pipelines pass files between stages, shared by every customer
+  # full name is codepipeline-{region}-{this id}
+  PipelineBucketID:
+    Type: String
+    Default: 6c670866de5c-45aa-9a79-6d0238639fb3
+
+  # true = run the pipeline on every push to BranchName
+  AutoDeploy:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+
+Resources:
+
+# ---------------------------- Pipeline Section ----------------------------
+  # the pipeline itself: Source -> Deploy (auth.yml)
+  Pipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      Name: !Sub 'pipeline-${Cust}-${App}-${Stage}-${Env}'
+      PipelineType: V2
+      RoleArn: !GetAtt PipelineRole.Arn
+      # where each stage drops its output for the next stage to pick up
+      ArtifactStore:
+        Type: S3
+        Location: !Sub 'codepipeline-${AWS::Region}-${PipelineBucketID}'
+      Stages:
+
+        # 1. grab the repo from github, zip it up as SourceOutput
+        - Name: Source
+          Actions:
+            - Name: GitHub
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Provider: CodeStarSourceConnection
+                Version: '1'
+              Configuration:
+                ConnectionArn: !Sub 'arn:aws:codeconnections:${AWS::Region}:${AWS::AccountId}:connection/${CodeStarConnectionID}'
+                FullRepositoryId: !Ref RepoName
+                BranchName: !Ref BranchName
+                OutputArtifactFormat: CODE_ZIP
+                DetectChanges: !Ref AutoDeploy
+              OutputArtifacts:
+                - Name: SourceOutput
+
+        # 2. deploy auth.yml as its own stack, e.g. doyle-kassle-dev-auth
+        - Name: Deploy
+          Actions:
+            - Name: AuthStack
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: '1'
+              InputArtifacts:
+                - Name: SourceOutput
+              Configuration:
+                # create the stack the first time, update it after that
+                ActionMode: CREATE_UPDATE
+                StackName: !Sub '${Cust}-${App}-${Env}-${Stage}'
+                TemplatePath: 'SourceOutput::deploy/auth/auth.yml'
+                # role cloudformation uses to make the user pool/client/domain
+                RoleArn: !GetAtt PipelineRole.Arn
+                # hands this pipeline's names down to auth.yml
+                # CallbackUrls isn't passed yet, so auth.yml's localhost default is used
+                ParameterOverrides: !Sub '{"Cust":"${Cust}","App":"${App}","Stage":"${Stage}","Env":"${Env}"}'
+
+# ---------------------------- IAM Section ----------------------------
+  # one role shared by the pipeline and cloudformation
+  # limited to this customer's names where aws allows it
+  PipelineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${Cust}-${App}-${Env}-${Stage}-role'
+      # which aws services are allowed to use this role
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codepipeline.amazonaws.com
+                - cloudformation.amazonaws.com
+            Action: sts:AssumeRole
+      # what the role is allowed to do
+      Policies:
+        - PolicyName: !Sub '${Cust}-${App}-${Env}-${Stage}-policy'
+          PolicyDocument:
+            Statement:
+
+              # read/write the shared artifact bucket (how stages pass the repo zip along)
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:PutObject
+                  - s3:GetBucketLocation
+                  - s3:GetBucketVersioning
+                  - s3:ListBucket
+                Resource:
+                  - !Sub 'arn:aws:s3:::codepipeline-${AWS::Region}-${PipelineBucketID}'
+                  - !Sub 'arn:aws:s3:::codepipeline-${AWS::Region}-${PipelineBucketID}/*'
+
+              # use the github connection (both names listed, aws renamed the service)
+              - Effect: Allow
+                Action:
+                  - codeconnections:UseConnection
+                  - codestar-connections:UseConnection
+                Resource:
+                  - !Sub 'arn:aws:codeconnections:${AWS::Region}:${AWS::AccountId}:connection/${CodeStarConnectionID}'
+                  - !Sub 'arn:aws:codestar-connections:${AWS::Region}:${AWS::AccountId}:connection/${CodeStarConnectionID}'
+
+              # create/update only this customer's auth stack
+              - Effect: Allow
+                Action: cloudformation:*
+                Resource: !Sub 'arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${Cust}-${App}-${Env}-${Stage}/*'
+
+              # the pipeline hands this same role to cloudformation
+              - Effect: Allow
+                Action: iam:PassRole
+                Resource: !Sub 'arn:aws:iam::${AWS::AccountId}:role/${Cust}-${App}-${Env}-${Stage}-role'
+
+              # cognito user pools get random ids (e.g. us-east-2_AbC123), not our names,
+              # and creating a pool can't be limited to one pool, so this can't be scoped per customer
+              - Effect: Allow
+                Action: cognito-idp:*
+                Resource: '*'
