@@ -7,10 +7,16 @@ Parameters:
   Cust:
     Type: String
     AllowedPattern: '^[a-z0-9-]+$'
+    Default: doyle
 
   App:
     Type: String
     Default: kassle
+
+  # which layer this is (core/auth/backend/frontend), the pipeline passes it in
+  Stage:
+    Type: String
+    Default: core
 
   Env:
     Type: String
@@ -52,6 +58,22 @@ Resources:
         - AttributeName: screenshotId
           KeyType: HASH
 
+  # one row per user (PK = cognito user sub), holds each user's role
+  # only the key goes here; 'role' gets added to items later, no schema needed
+  UserTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Join ['-', [!Ref Cust, !Ref App, !Ref Env, 'user']]
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+
 # ---------------------------- S3 Section ----------------------------
   ScreenshotBucket:
     Type: AWS::S3::Bucket
@@ -90,6 +112,12 @@ Outputs:
     Value: !Ref ScreenshotsTable
     Export:
       Name: !Join ['-', [!Ref Cust, !Ref App, !Ref Env, 'ScreenshotsTable']]
+
+  # for backend role lookup
+  UserTableName:
+    Value: !Ref UserTable
+    Export:
+      Name: !Join ['-', [!Ref Cust, !Ref App, !Ref Env, 'UserTable']]
 
   ScreenshotBucketName:
     Value: !Ref ScreenshotBucket

@@ -1,0 +1,31 @@
+version: 0.2
+
+# runs in the Seed stage of pipeline-{cust}-{app}-core-{env}, after core.yml has made the tables
+# CUST_NAME, APP_NAME and ENV_NAME are passed in by the pipeline, CodeBuild sets AWS_REGION itself
+
+phases:
+
+  # pick the node version for the build box
+  install:
+    runtime-versions:
+      nodejs: 20
+    commands:
+      - echo "Node version on this build box:"
+      - node --version
+
+  # install the packages seed.js needs (aws sdk), from backend/package-lock.json
+  pre_build:
+    commands:
+      - echo "Seeding for $CUST_NAME / $APP_NAME / $ENV_NAME in $AWS_REGION"
+      - echo "Target table will be $CUST_NAME-$APP_NAME-$ENV_NAME-games"
+      - cd backend
+      - echo "Installing backend packages with npm ci"
+      - npm ci
+
+  # put the starter games from gamesArray.json into the games table
+  # games that already exist are skipped, so re-running this is safe
+  build:
+    commands:
+      - echo "Running seed.js"
+      - node seed.js
+      - echo "Seeding finished"
