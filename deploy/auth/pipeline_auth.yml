@@ -33,7 +33,7 @@ Parameters:
   # https://dxxxx.cloudfront.net,http://localhost:4200
   CallbackUrls:
     Type: String
-    Default: http://localhost:4200
+    Default: https://d2scqxtqvd53eh.cloudfront.net
 
   # ---------------------------- Source ----------------------------
   # github repo, edit for each customer
