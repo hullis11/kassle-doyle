@@ -13,6 +13,10 @@ phases:
       - echo "Switching to node 22"
       - n 22
       - node -v
+      # node 22 comes with npm 10, match the npm version in frontend/package.json (packageManager)
+      - echo "Upgrading npm to 11.19.0"
+      - npm install -g npm@11.19.0
+      - npm -v
 
   # read the secret and install packages
   pre_build:
@@ -24,8 +28,9 @@ phases:
       - AUTHORITY=$(echo "$SECRET" | jq -r '.AUTHORITY')
       - COGNITO_CLIENT_ID=$(echo "$SECRET" | jq -r '.COGNITO_CLIENT_ID')
       - cd frontend
-      - echo "Installing frontend packages"
-      - npm i
+      # npm ci installs exactly what's in package-lock.json (no re-resolving, same versions every build)
+      - echo "Installing frontend packages from package-lock.json"
+      - npm ci
 
   # write this customer's values into environment.ts, then build
   build:
