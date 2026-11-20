@@ -1,0 +1,292 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Backend pipeline for Kassle (runs serverless deploy - api gateway, lambdas, lambda role)
+
+# deploy this once per customer by hand, after that the pipeline runs on every push
+# creates: pipeline-{cust}-{app}-{stage}-{env}, e.g. pipeline-doyle-kassle-backend-dev
+# run AFTER the core and auth pipelines have finished (serverless reads the auth stack's user pool)
+#
+# no cloudformation stage here: codebuild runs "serverless deploy", and serverless
+# writes and deploys its own cloudformation stack ({cust}-{app}-{env}-backend)
+#
+# two-pass authorizer deploy:
+#   1. create this stack with EnableAuthorizer = false -> api deploys with no login required
+#   2. update this stack, set EnableAuthorizer = true  -> pipeline reruns, cognito authorizer attached
+#   leave it on true from then on
+
+Parameters:
+
+  # ---------------------------- Naming ----------------------------
+  # customer name, lowercase to match the other layers
+  Cust:
+    Type: String
+    AllowedPattern: '^[a-z0-9-]+$'
+    Default: test1
+
+  App:
+    Type: String
+    Default: kassle
+
+  Stage:
+    Type: String
+    Default: backend
+
+  Env:
+    Type: String
+    Default: dev
+
+  # ---------------------------- Backend settings ----------------------------
+  # 'false' for the very first deploy, then update the stack to 'true'
+  EnableAuthorizer:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+
+  # customer's site url, allowed to call the api (cors), localhost until they have one
+  SiteUrl:
+    Type: String
+    Default: http://localhost:4200
+
+  # ---------------------------- Source ----------------------------
+  # github repo, edit for each customer
+  RepoName:
+    Type: String
+    Default: hullis11/kassle-doyle
+
+  BranchName:
+    Type: String
+    Default: main
+
+  # id at the end of the github connection's arn (Developer Tools > Settings > Connections)
+  # shared by every customer, made once by hand
+  CodeStarConnectionID:
+    Type: String
+    Default: 646d1507-a189-439b-90d3-52460574f90b
+
+  # ---------------------------- Pipeline ----------------------------
+  # existing bucket where pipelines pass files between stages, shared by every customer
+  # full name is codepipeline-{region}-{this id}
+  PipelineBucketID:
+    Type: String
+    Default: 6c670866de5c-45aa-9a79-6d0238639fb3
+
+  # true = run the pipeline on every push to BranchName
+  AutoDeploy:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+
+Resources:
+
+# ---------------------------- Pipeline Section ----------------------------
+  # the pipeline itself: Source -> Deploy (codebuild runs buildspec-be.yml)
+  Pipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      Name: !Sub 'pipeline-${Cust}-${App}-${Stage}-${Env}'
+      PipelineType: V2
+      RoleArn: !GetAtt PipelineRole.Arn
+      # rerun automatically when this stack is updated (e.g. flipping EnableAuthorizer to true)
+      RestartExecutionOnUpdate: true
+      # where each stage drops its output for the next stage to pick up
+      ArtifactStore:
+        Type: S3
+        Location: !Sub 'codepipeline-${AWS::Region}-${PipelineBucketID}'
+      Stages:
+
+        # 1. grab the repo from github, zip it up as SourceOutput
+        - Name: Source
+          Actions:
+            - Name: GitHub
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Provider: CodeStarSourceConnection
+                Version: '1'
+              Configuration:
+                ConnectionArn: !Sub 'arn:aws:codeconnections:${AWS::Region}:${AWS::AccountId}:connection/${CodeStarConnectionID}'
+                FullRepositoryId: !Ref RepoName
+                BranchName: !Ref BranchName
+                OutputArtifactFormat: CODE_ZIP
+                DetectChanges: !Ref AutoDeploy
+              OutputArtifacts:
+                - Name: SourceOutput
+
+        # 2. codebuild runs serverless deploy
+        - Name: Deploy
+          Actions:
+            - Name: ServerlessDeploy
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: '1'
+              InputArtifacts:
+                - Name: SourceOutput
+              Configuration:
+                ProjectName: !Ref BackendProject
+                # serverless.yml reads these to name everything and pick authorizer on/off
+                EnvironmentVariables: !Sub '[{"name":"CUST_NAME","value":"${Cust}"},{"name":"APP_NAME","value":"${App}"},{"name":"ENV_NAME","value":"${Env}"},{"name":"REGION","value":"${AWS::Region}"},{"name":"ENABLE_AUTHORIZER","value":"${EnableAuthorizer}"},{"name":"SITE_URL","value":"${SiteUrl}"}]'
+
+# ---------------------------- CodeBuild Section ----------------------------
+  # the machine that runs buildspec-be.yml (npm ci + serverless deploy)
+  BackendProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub '${Cust}-${App}-${Env}-backend-deploy'
+      Description: Deploys the backend with serverless
+      ServiceRole: !GetAtt PipelineRole.Arn
+      # input and output both come from / go back to the pipeline
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: deploy/backend/buildspec-be.yml
+      Artifacts:
+        Type: CODEPIPELINE
+      # smallest linux build box, same image as the other layers
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:5.0
+
+# ---------------------------- IAM Section ----------------------------
+  # one role shared by the pipeline and codebuild
+  # serverless deploys using codebuild's permissions, so this role needs everything
+  # serverless creates: lambdas, api gateway, the lambda role, log groups
+  # limited to this customer's names where aws allows it
+  PipelineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${Cust}-${App}-${Env}-${Stage}-role'
+      # which aws services are allowed to use this role
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codepipeline.amazonaws.com
+                - codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      # what the role is allowed to do
+      Policies:
+        - PolicyName: !Sub '${Cust}-${App}-${Env}-${Stage}-policy'
+          PolicyDocument:
+            Statement:
+
+              # ---------- pipeline basics (same as core/auth) ----------
+
+              # read/write the shared artifact bucket (how stages pass the repo zip along)
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:PutObject
+                  - s3:GetBucketLocation
+                  - s3:GetBucketVersioning
+                  - s3:ListBucket
+                Resource:
+                  - !Sub 'arn:aws:s3:::codepipeline-${AWS::Region}-${PipelineBucketID}'
+                  - !Sub 'arn:aws:s3:::codepipeline-${AWS::Region}-${PipelineBucketID}/*'
+
+              # use the github connection (both names listed, aws renamed the service)
+              - Effect: Allow
+                Action:
+                  - codeconnections:UseConnection
+                  - codestar-connections:UseConnection
+                Resource:
+                  - !Sub 'arn:aws:codeconnections:${AWS::Region}:${AWS::AccountId}:connection/${CodeStarConnectionID}'
+                  - !Sub 'arn:aws:codestar-connections:${AWS::Region}:${AWS::AccountId}:connection/${CodeStarConnectionID}'
+
+              # start the backend build and check on it
+              - Effect: Allow
+                Action:
+                  - codebuild:StartBuild
+                  - codebuild:BatchGetBuilds
+                Resource: !Sub 'arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/${Cust}-${App}-${Env}-backend-deploy'
+
+              # codebuild writes its build logs here (what you read in the console)
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${Cust}-${App}-${Env}-backend-deploy*'
+
+              # the pipeline hands this same role to codebuild
+              # serverless hands the lambda role to the lambdas
+              - Effect: Allow
+                Action: iam:PassRole
+                Resource:
+                  - !Sub 'arn:aws:iam::${AWS::AccountId}:role/${Cust}-${App}-${Env}-${Stage}-role'
+                  - !Sub 'arn:aws:iam::${AWS::AccountId}:role/${Cust}-${App}-${Env}-lambda-role'
+
+              # serverless login key (secret "serverless-access", shared by every customer)
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:serverless-access*'
+
+              # ---------- what serverless deploy needs ----------
+
+              # serverless's own stack, plus reading the auth stack for the user pool arn
+              - Effect: Allow
+                Action: cloudformation:*
+                Resource: !Sub 'arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${Cust}-${App}-${Env}-backend/*'
+              - Effect: Allow
+                Action: cloudformation:DescribeStacks
+                Resource: !Sub 'arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${Cust}-${App}-${Env}-auth/*'
+              # checking a template can't be limited to one stack
+              - Effect: Allow
+                Action: cloudformation:ValidateTemplate
+                Resource: '*'
+
+              # bucket serverless uploads the lambda code zip to before deploying
+              # v4 shares one bucket per region (serverless-framework-deployments-*) and
+              # remembers its name in an ssm parameter; older versions made one per stack
+              - Effect: Allow
+                Action: s3:*
+                Resource:
+                  - 'arn:aws:s3:::serverless-framework-deployments-*'
+                  - 'arn:aws:s3:::serverless-framework-deployments-*/*'
+                  - !Sub 'arn:aws:s3:::${Cust}-${App}-${Env}-backend-serverlessdeploy*'
+                  - !Sub 'arn:aws:s3:::${Cust}-${App}-${Env}-backend-serverlessdeploy*/*'
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:PutParameter
+                Resource: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/serverless-framework/*'
+
+              # the 7 lambdas, named {cust}-{app}-{env}-{function}, e.g. test1-kassle-dev-loadGames
+              - Effect: Allow
+                Action: lambda:*
+                Resource: !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${Cust}-${App}-${Env}-*'
+
+              # api gateway ids are random (not our names), so this can't be scoped per customer
+              - Effect: Allow
+                Action: apigateway:*
+                Resource: !Sub 'arn:aws:apigateway:${AWS::Region}::/*'
+
+              # the lambda role from serverless.yml ({cust}-{app}-{env}-lambda-role)
+              - Effect: Allow
+                Action:
+                  - iam:GetRole
+                  - iam:CreateRole
+                  - iam:DeleteRole
+                  - iam:TagRole
+                  - iam:UntagRole
+                  - iam:GetRolePolicy
+                  - iam:PutRolePolicy
+                  - iam:DeleteRolePolicy
+                  - iam:AttachRolePolicy
+                  - iam:DetachRolePolicy
+                Resource: !Sub 'arn:aws:iam::${AWS::AccountId}:role/${Cust}-${App}-${Env}-lambda-role'
+
+              # log groups for the lambdas
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:DeleteLogGroup
+                  - logs:PutRetentionPolicy
+                  - logs:TagResource
+                Resource: !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${Cust}-${App}-${Env}-*'
+              # listing log groups can't be limited to a name
+              - Effect: Allow
+                Action: logs:DescribeLogGroups
+                Resource: '*'

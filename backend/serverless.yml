@@ -27,10 +27,17 @@ custom:
       - Content-Type
       - X-Api-Key
       - Authorization
-  authorizer: &authorizer
-    name: cognitoAuthorizer
-    type: COGNITO_USER_POOLS
-    arn: ${self:custom.userPoolArn}
+  # two-pass deploy switch, the pipeline sets ENABLE_AUTHORIZER (false on first deploy, then true)
+  enableAuthorizer: ${env:ENABLE_AUTHORIZER, 'true'}
+  # the cognito authorizer, only used when enableAuthorizer is 'true'
+  authorizerOptions:
+    'true':
+      name: cognitoAuthorizer
+      type: COGNITO_USER_POOLS
+      arn: ${self:custom.userPoolArn}
+  # 'true' -> picks the authorizer above, 'false' -> no match, falls back to null = no authorizer
+  # every function below uses *authorizer, so this one line switches all 7
+  authorizer: &authorizer ${self:custom.authorizerOptions.${self:custom.enableAuthorizer}, null}
 
 provider:
   name: aws
@@ -38,6 +45,8 @@ provider:
   architecture: arm64
   stage: ${env:ENV_NAME, 'dev'}
   region: ${env:REGION, 'us-east-2'}
+  # cloudformation stack name, matches the other layers, e.g. test1-kassle-dev-backend
+  stackName: ${self:custom.prefix}-backend
   # handlers read these instead of hardcoded names
   environment:
     GAMES_TABLE: ${self:custom.gamesTable}
