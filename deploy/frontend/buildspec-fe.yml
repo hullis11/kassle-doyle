@@ -30,7 +30,7 @@ phases:
       - cd frontend
       # npm ci installs exactly what's in package-lock.json (no re-resolving, same versions every build)
       - echo "Installing frontend packages from package-lock.json"
-      - npm ci
+      - npm i
 
   # write this customer's values into environment.ts, then build
   build:
