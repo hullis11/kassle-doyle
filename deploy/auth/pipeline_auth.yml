@@ -27,6 +27,14 @@ Parameters:
     Type: String
     Default: dev
 
+  # ---------------------------- Auth settings ----------------------------
+  # where cognito may send users after login/logout, comma separated, no trailing slashes
+  # after the frontend deploys, add its SiteUrl output, e.g.
+  # https://dxxxx.cloudfront.net,http://localhost:4200
+  CallbackUrls:
+    Type: String
+    Default: http://localhost:4200
+
   # ---------------------------- Source ----------------------------
   # github repo, edit for each customer
   RepoName:
@@ -109,8 +117,7 @@ Resources:
                 # role cloudformation uses to make the user pool/client/domain
                 RoleArn: !GetAtt PipelineRole.Arn
                 # hands this pipeline's names down to auth.yml
-                # CallbackUrls isn't passed yet, so auth.yml's localhost default is used
-                ParameterOverrides: !Sub '{"Cust":"${Cust}","App":"${App}","Stage":"${Stage}","Env":"${Env}"}'
+                ParameterOverrides: !Sub '{"Cust":"${Cust}","App":"${App}","Stage":"${Stage}","Env":"${Env}","CallbackUrls":"${CallbackUrls}"}'
 
 # ---------------------------- IAM Section ----------------------------
   # one role shared by the pipeline and cloudformation

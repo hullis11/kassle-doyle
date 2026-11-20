@@ -28,7 +28,6 @@ phases:
       - AUTHORITY=$(echo "$SECRET" | jq -r '.AUTHORITY')
       - COGNITO_CLIENT_ID=$(echo "$SECRET" | jq -r '.COGNITO_CLIENT_ID')
       - cd frontend
-      # npm ci installs exactly what's in package-lock.json (no re-resolving, same versions every build)
       - echo "Installing frontend packages from package-lock.json"
       - npm i
 
