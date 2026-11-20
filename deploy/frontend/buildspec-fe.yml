@@ -1,23 +1,36 @@
 version: 0.2
 
-env:
-  secrets-manager:
-    BACKEND_URL: $CUST_NAME/$APP_NAME/$ENV_NAME:BACKEND_URL
-    AUTHORITY: $CUST_NAME/$APP_NAME/$ENV_NAME:AUTHORITY
-    COGNITO_CLIENT_ID: $CUST_NAME/$APP_NAME/$ENV_NAME:COGNITO_CLIENT_ID
+# runs in the Build stage of pipeline-{cust}-{app}-frontend-{env}
+# the pipeline passes in CUST_NAME, APP_NAME, ENV_NAME and REGION
+# reads this customer's secret ({cust}/{app}/{env}), writes environment.ts, builds angular
+# the built files go back to the pipeline, which uploads them to the site bucket
 
 phases:
+
+  # node 22 for angular
   install:
     commands:
+      - echo "Switching to node 22"
       - n 22
       - node -v
+
+  # read the secret and install packages
   pre_build:
     commands:
+      - echo "Reading secret $CUST_NAME/$APP_NAME/$ENV_NAME"
+      - SECRET=$(aws secretsmanager get-secret-value --secret-id "$CUST_NAME/$APP_NAME/$ENV_NAME" --region "$REGION" --query SecretString --output text)
+      # pull each key out of the secret's json
+      - BACKEND_URL=$(echo "$SECRET" | jq -r '.BACKEND_URL')
+      - AUTHORITY=$(echo "$SECRET" | jq -r '.AUTHORITY')
+      - COGNITO_CLIENT_ID=$(echo "$SECRET" | jq -r '.COGNITO_CLIENT_ID')
       - cd frontend
+      - echo "Installing frontend packages"
       - npm i
 
+  # write this customer's values into environment.ts, then build
   build:
     commands:
+      - echo "Writing src/environments/environment.ts for $CUST_NAME"
       - mkdir -p src/environments
       - |
         cat > src/environments/environment.ts <<EOF
@@ -27,14 +40,19 @@ phases:
           clientId: '$COGNITO_CLIENT_ID'
         };
         EOF
+      # print it so the log shows which values went in (none of these are secret, they end up in the site's js anyway)
       - cat src/environments/environment.ts
 
+      - echo "Building angular for production"
       - node_modules/.bin/ng build --configuration production
 
+      # angular puts the site in dist/Kassle/browser, move it up a level so the bucket gets index.html at the top
+      - echo "Moving build output up out of browser/"
       - ls dist/Kassle
       - mv dist/Kassle/browser/* dist/Kassle/
       - ls dist/Kassle
 
+# hand the built site back to the pipeline (the Deploy stage uploads it to the site bucket)
 artifacts:
   files:
     - '**/*'

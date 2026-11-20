@@ -2,13 +2,25 @@ AWSTemplateFormatVersion: 2010-09-09
 Description: Static Site Resources for Frontend in S3
 
 Parameters:
-  SiteName:
-    Type: String
-    Default: kassle.selwaymore
 
-  CacheName:
+  # same naming as the other layers, the pipeline passes these in
+  # every name below is built from them, e.g. test1-kassle-dev-site
+  Cust:
     Type: String
-    Default: kasselwaymore
+    AllowedPattern: '^[a-z0-9-]+$'
+    Default: test1
+
+  App:
+    Type: String
+    Default: kassle
+
+  Stage:
+    Type: String
+    Default: frontend
+
+  Env:
+    Type: String
+    Default: dev
 
   # not used yet, CloudFront is on its default certificate until ours is issued
   SslCertArn:
@@ -25,10 +37,8 @@ Resources:
   Bucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Join
-        - ''
-        - - !Ref SiteName
-          - .com
+      # holds the built angular files, e.g. test1-kassle-dev-site
+      BucketName: !Sub '${Cust}-${App}-${Env}-site'
       BucketEncryption:
         ServerSideEncryptionConfiguration:
           - BucketKeyEnabled: true
@@ -216,7 +226,7 @@ Resources:
         # Name is just a label (max 64 chars); the wiring is via OriginAccessControlId below. The
         # old value appended ".com.s3.<region>.amazonaws.com" which pushed longer customer names
         # (e.g. combinedbrain) over the 64-char limit -> "Invalid request provided".
-        Name: !Sub "${SiteName}-oac"
+        Name: !Sub '${Cust}-${App}-${Env}-oac'
         OriginAccessControlOriginType: s3
         SigningBehavior: always
         SigningProtocol: sigv4
@@ -230,10 +240,8 @@ Resources:
         DefaultTTL: 60
         MaxTTL: 86400 #31536000
         MinTTL: 1
-        Name: !Join
-          - ''
-          - - Pipeline-Created-Policy-
-            - !Ref CacheName
+        # has to be unique in the whole account, so the customer name goes in it
+        Name: !Sub '${Cust}-${App}-${Env}-cache'
         ParametersInCacheKeyAndForwardedToOrigin:
           CookiesConfig:
             CookieBehavior: none
@@ -248,7 +256,8 @@ Resources:
     Type: AWS::CloudFront::ResponseHeadersPolicy
     Properties:
       ResponseHeadersPolicyConfig:
-        Name: !Sub "${CacheName}-security-headers"
+        # has to be unique in the whole account, so the customer name goes in it
+        Name: !Sub '${Cust}-${App}-${Env}-security-headers'
         Comment: Security headers for Angular application
         SecurityHeadersConfig:
           StrictTransportSecurity:
@@ -298,3 +307,13 @@ Resources:
             - Header: NEL
               Value: '{"report_to":"default","max_age":31536000,"include_subdomains":true}'
               Override: true
+
+Outputs:
+
+  # the site's address until the customer's own domain is pointed at it
+  # goes into auth CallbackUrls and backend SiteUrl, and is the target for the customer's DNS CNAME
+  SiteUrl:
+    Value: !Sub 'https://${CloudFrontDistro.DomainName}'
+
+  SiteBucketName:
+    Value: !Ref Bucket

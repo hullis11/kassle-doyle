@@ -3,50 +3,44 @@ Description: S3 Static Site using CloudFront for Pipeline-UI
 
 Parameters:
 
+  # ---------------------------- Naming ----------------------------
+  # customer name, lowercase since it ends up in bucket names
   Cust:
     Type: String
-    Default: changeme
+    AllowedPattern: '^[a-z0-9-]+$'
+    Default: test1
 
   App:
     Type: String
     Default: kassle
 
+  Stage:
+    Type: String
+    Default: frontend
+
   Env:
     Type: String
     Default: dev
 
-  Region:
+  # ---------------------------- Source ----------------------------
+  # github repo, edit for each customer
+  RepoName:
     Type: String
-    Default: us-east-2
+    Default: hullis11/kassle-doyle
 
   BranchName:
     Type: String
     Default: main
 
-  # github repo for this customer, e.g. hullis11/kassle-custa
-  RepoName:
-    Type: String
-    Default: changeme
-
-  PipelineBucketID:
-    Type: String
-    Default: 6c670866de5c-45aa-9a79-6d0238639fb3
-
-  SiteName:
-    Type: String
-    Default: changeme
-
-  AwsAccount:
-    Type: String
-    Default: '550097745439'
-
+  # id at the end of the github connection's arn, shared by every customer
   CodeStarConnectionID:
     Type: String
     Default: 646d1507-a189-439b-90d3-52460574f90b
 
-  CacheName:
+  # existing bucket where pipelines pass files between stages, shared by every customer
+  PipelineBucketID:
     Type: String
-    Default: changeme
+    Default: 6c670866de5c-45aa-9a79-6d0238639fb3
 
   # not used yet, CloudFront is on its default certificate until ours is issued
   SslCertArn:
@@ -73,9 +67,10 @@ Resources:
     Properties: 
       PipelineType: V2
       ArtifactStore: 
-        Location: !Join ['', ['codepipeline-', !Ref Region,'-', !Ref PipelineBucketID]]
+        Location: !Sub 'codepipeline-${AWS::Region}-${PipelineBucketID}'
         Type: S3
-      Name: !Join ['-', [!Ref Cust, !Ref App, 'fe', !Ref Env]]
+      # e.g. pipeline-test1-kassle-frontend-dev
+      Name: !Sub 'pipeline-${Cust}-${App}-${Stage}-${Env}'
       RestartExecutionOnUpdate: true
       RoleArn: !GetAtt RolePipeline.Arn 
       Stages: 
@@ -90,7 +85,7 @@ Resources:
               OutputArtifacts: 
                 - Name: SrcArt1
               Configuration:
-                ConnectionArn: !Join ['', ['arn:aws:codeconnections:',!Ref Region, ':', !Ref AwsAccount,':connection/', !Ref CodeStarConnectionID]]
+                ConnectionArn: !Sub 'arn:aws:codeconnections:${AWS::Region}:${AWS::AccountId}:connection/${CodeStarConnectionID}'
                 FullRepositoryId: !Ref RepoName
                 BranchName: !Ref BranchName
                 # CODEBUILD_CLONE_REF hands CodeBuild a git reference rather than a zip, so the
@@ -115,7 +110,7 @@ Resources:
               OutputArtifacts:
                 - Name: SrcArt2
               Configuration:
-                ConnectionArn: !Join ['', ['arn:aws:codeconnections:',!Ref Region, ':', !Ref AwsAccount,':connection/', !Ref CodeStarConnectionID]]
+                ConnectionArn: !Sub 'arn:aws:codeconnections:${AWS::Region}:${AWS::AccountId}:connection/${CodeStarConnectionID}'
                 FullRepositoryId: !Ref RepoName
                 BranchName: !Ref BranchName
                 OutputArtifactFormat: CODE_ZIP
@@ -140,7 +135,7 @@ Resources:
                     {"name":"CUST_NAME","value":"${Cust}","type":"PLAINTEXT"},
                     {"name":"APP_NAME","value":"${App}","type":"PLAINTEXT"},
                     {"name":"ENV_NAME","value":"${Env}","type":"PLAINTEXT"},
-                    {"name":"REGION","value":"${Region}","type":"PLAINTEXT"},
+                    {"name":"REGION","value":"${AWS::Region}","type":"PLAINTEXT"},
                     {"name":"GIT_COMMIT","value":"#{SourceVariables.CommitId}","type":"PLAINTEXT"},
                     {"name":"BRANCH_NAME","value":"#{SourceVariables.BranchName}","type":"PLAINTEXT"}
                   ]
@@ -159,12 +154,10 @@ Resources:
               Configuration:
                 ActionMode: CREATE_UPDATE
                 Capabilities: CAPABILITY_NAMED_IAM
-                ParameterOverrides: !Sub
-                  - '{"SiteName":"${siteName}", "CacheName":"${cacheName}", "SslCertArn":"${sslCertArn}"}'
-                  - siteName: !Ref SiteName
-                    cacheName: !Ref CacheName
-                    sslCertArn: !Ref SslCertArn
-                StackName: !Join ['-', [!Ref Cust, !Ref App, 'fe', !Ref Env]]
+                # hands this pipeline's names down to static-site-resources.yml
+                ParameterOverrides: !Sub '{"Cust":"${Cust}","App":"${App}","Stage":"${Stage}","Env":"${Env}","SslCertArn":"${SslCertArn}"}'
+                # e.g. test1-kassle-dev-frontend
+                StackName: !Sub '${Cust}-${App}-${Env}-${Stage}'
                 TemplatePath: 'SrcArt2::deploy/frontend/static-site-resources.yml'
                 RoleArn: !GetAtt RoleCloudFormationAction.Arn  
         - Name: Deploy
@@ -179,14 +172,15 @@ Resources:
               InputArtifacts: 
                 - Name: Build1Art1
               Configuration:
-                BucketName: !Join ['', [ !Ref SiteName, '.com' ]] 
+                # same bucket static-site-resources.yml creates
+                BucketName: !Sub '${Cust}-${App}-${Env}-site'
                 Extract: 'true'
  
 # ---------------------------- CodeBuild Section ----------------------------
   CodeBuildProject:
     Type: AWS::CodeBuild::Project
     Properties:
-      Name: !Join ['-',['Build_', !Ref Cust, !Ref App, 'fe', !Ref Env]]
+      Name: !Sub '${Cust}-${App}-${Env}-frontend-build'
       Description: For compiling angular code to go into s3 bucket later
       Artifacts: 
         Type: CODEPIPELINE
@@ -213,7 +207,7 @@ Resources:
   RolePipeline:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Join ['', [!Join ['-', ['CodePipelineServiceRole', !Ref Cust, !Ref App, 'fe', !Ref Env]], !Ref IamSuffix]]
+      RoleName: !Sub '${Cust}-${App}-${Env}-${Stage}-pipeline-role${IamSuffix}'
       AssumeRolePolicyDocument:
         Statement:
           - Effect: Allow
@@ -225,7 +219,7 @@ Resources:
     Type: AWS::IAM::Policy
     DependsOn: RolePipeline
     Properties:
-      PolicyName: !Join ['-',['CodePipelineServiceRolePolicies', !Ref Cust, !Ref App, 'fe', !Ref Env]]
+      PolicyName: !Sub '${Cust}-${App}-${Env}-${Stage}-pipeline-policy'
       Roles: 
         - !Ref RolePipeline
       PolicyDocument: 
@@ -291,11 +285,7 @@ Resources:
           - "codestar-connections:CreateSyncConfiguration"
           - "codestar-connections:CreateHost"
           Resource:
-            - !Sub 
-              - "arn:aws:codeconnections:${region}:${account}:connection/${connection}"
-              - account: !Ref AwsAccount
-                region: !Ref Region
-                connection: !Ref CodeStarConnectionID
+            - !Sub 'arn:aws:codeconnections:${AWS::Region}:${AWS::AccountId}:connection/${CodeStarConnectionID}'
           Effect: "Allow"
         - Action:
             - "cloudwatch:*"
@@ -332,7 +322,7 @@ Resources:
   RoleCodeBuildProject:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Join ['', [!Join ['-', ['CodeBuildServiceRole',!Ref Cust, !Ref App, 'fe', !Ref Env]], !Ref IamSuffix]]
+      RoleName: !Sub '${Cust}-${App}-${Env}-${Stage}-codebuild-role${IamSuffix}'
       AssumeRolePolicyDocument:
         Statement:
           - Effect: Allow
@@ -344,7 +334,7 @@ Resources:
     Type: AWS::IAM::Policy
     DependsOn: RoleCodeBuildProject
     Properties:
-      PolicyName: !Join ['-', ['CodeBuildServiceRolePolicies', !Ref Cust, !Ref App, 'fe', !Ref Env]]
+      PolicyName: !Sub '${Cust}-${App}-${Env}-${Stage}-codebuild-policy'
       Roles: 
         - !Ref RoleCodeBuildProject
       PolicyDocument:
@@ -359,17 +349,16 @@ Resources:
               - "codestar-connections:UseConnection"
               - "codeconnections:UseConnection"
             Resource:
-              - !Join ['', ['arn:aws:codeconnections:',!Ref Region, ':', !Ref AwsAccount,':connection/', !Ref CodeStarConnectionID]]
-              - !Join ['', ['arn:aws:codestar-connections:',!Ref Region, ':', !Ref AwsAccount,':connection/', !Ref CodeStarConnectionID]]
+              - !Sub 'arn:aws:codeconnections:${AWS::Region}:${AWS::AccountId}:connection/${CodeStarConnectionID}'
+              - !Sub 'arn:aws:codestar-connections:${AWS::Region}:${AWS::AccountId}:connection/${CodeStarConnectionID}'
           - Effect: "Allow"
             Action:
               - "logs:CreateLogGroup"
               - "logs:CreateLogStream"
               - "logs:PutLogEvents"
             Resource:
-              - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/Build*"
-              - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/Build*:*"
-              - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/Build*:log-stream:*"
+              # matches the codebuild project name above
+              - !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${Cust}-${App}-${Env}-frontend-build*"
 
           - Effect: "Allow"
             Action:
@@ -389,7 +378,7 @@ Resources:
               - "codebuild:BatchPutTestCases"
               - "codebuild:BatchPutCodeCoverages"
             Resource:
-              - !Sub "arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:report-group/Build_*"
+              - !Sub "arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:report-group/${Cust}-${App}-${Env}-frontend-build*"
           - Effect: "Allow"
             Action: 
               - "secretsmanager:ListSecrets"
@@ -405,7 +394,7 @@ Resources:
   RoleCloudFormationAction:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Join ['', [!Join ['-', ['CloudFormationActionServiceRole', !Ref Cust, !Ref App, 'fe', !Ref Env]], !Ref IamSuffix]]
+      RoleName: !Sub '${Cust}-${App}-${Env}-${Stage}-cfn-role${IamSuffix}'
       AssumeRolePolicyDocument:
         Statement:
           - Effect: Allow
@@ -417,7 +406,7 @@ Resources:
     Type: AWS::IAM::Policy
     DependsOn: RoleCloudFormationAction
     Properties:
-      PolicyName: !Join ['-', ['CFNServiceRolePolicies', !Ref Cust, !Ref App, 'fe', !Ref Env]]
+      PolicyName: !Sub '${Cust}-${App}-${Env}-${Stage}-cfn-policy'
       Roles: 
         - !Ref RoleCloudFormationAction
       PolicyDocument: 
